@@ -61,6 +61,4 @@ def test_generated_contracts_are_current(tmp_path: Path) -> None:
     export(tmp_path)
     committed = Path("contracts/generated")
     for generated in sorted(tmp_path.iterdir()):
-        expected = (committed / generated.name).read_text(encoding="utf-8")
-        actual = generated.read_text(encoding="utf-8")
-        assert actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n")
+        assert generated.read_bytes() == (committed / generated.name).read_bytes()
