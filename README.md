@@ -2,6 +2,8 @@
 
 An engineering platform for CALB lithium-iron-phosphate (LFP) cell ageing, ESS state-of-health (SOH) simulation, dispatch analysis, and warranty risk assessment.
 
+**Current release: V0.1**
+
 ## Scope
 
 - **PyBaMM models** — electrochemical and degradation model adapters.
@@ -60,3 +62,9 @@ The first Web control plane is under `web/`. It provides a user-specific persist
 ## License
 
 Proprietary — internal use unless a separate license is approved.
+
+## Project attribution
+
+Concept, system design, validation, and iteration direction are led by **Alex.Z**.
+
+© 2026 Alex.Z. All rights reserved.

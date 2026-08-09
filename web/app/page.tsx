@@ -91,7 +91,7 @@ export default function Home() {
         <div className="metrics">
           <article><span>运行中任务</span><strong>{activeCount}</strong><small>用户退出后继续执行</small></article>
           <article><span>本月已完成</span><strong>{Math.max(24, runs.filter((r) => r.status === "completed").length)}</strong><small>↑ 18% vs. 上月</small></article>
-          <article><span>模型版本</span><strong>v0.1</strong><small>PyBaMM · LFP 基线</small></article>
+          <article><span>模型版本</span><strong>V0.1</strong><small>PyBaMM · LFP 基线</small></article>
           <article><span>计算节点负载</span><strong>42%</strong><small>2 / 5 workers active</small></article>
         </div>
 
@@ -126,6 +126,7 @@ export default function Home() {
           <div className="panel-head"><div><p className="eyebrow">PERSISTENT JOB QUEUE</p><h2>最近任务</h2></div><button className="text-button">查看全部 →</button></div>
           <div className="table"><div className="table-row table-head"><span>任务</span><span>工况</span><span>进度</span><span>状态</span><span>期末 SOH</span></div>{runs.slice(0, 5).map((run) => <button className={`table-row ${selected === run.id ? "selected" : ""}`} key={run.id} onClick={() => setSelected(run.id)}><span><b>{run.name}</b><small>{run.id}</small></span><span>{run.horizonYears} 年 · {run.cyclesPerDay} 循环/日</span><span><progress value={run.progress} max="100" /> {run.progress}%</span><span><i className={`mini-dot ${run.status}`} />{statusLabel[run.status]}</span><span>{run.endSoh ? `${run.endSoh}%` : "—"}</span></button>)}</div>
         </section>
+        <footer className="project-footer"><span>CALB ESS Digital Twin · V0.1</span><span>Concept &amp; System Design · Alex.Z</span><span>© 2026 Alex.Z</span></footer>
       </section>
     </main>
   );
