@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   try { payload = await request.json(); } catch { return Response.json({ error: "request body must be valid JSON" }, { status: 400 }); }
   const parsed = parseProductInput(payload);
   if (!parsed.ok) return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
-  const product = { id: crypto.randomUUID(), userId: owner, ...parsed.value, status: "draft", createdAt: new Date().toISOString() };
+  const product = { id: crypto.randomUUID(), userId: owner, ...parsed.value, status: "draft" as const, createdAt: new Date().toISOString() };
   try { await getDb().insert(cellProducts).values(product); }
   catch { return Response.json({ error: "A product with this manufacturer, model, and revision already exists" }, { status: 409 }); }
   return Response.json({ product }, { status: 201 });

@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const sample = existingSample[0] ?? { id: crypto.randomUUID(), userId: owner, productId: parsed.value.productId, sampleCode: parsed.value.sampleCode, batchCode: parsed.value.batchCode, createdAt: now };
   const { sampleCode: _sampleCode, batchCode: _batchCode, ...input } = parsed.value;
   void _sampleCode; void _batchCode;
-  const dataset = { id: crypto.randomUUID(), userId: owner, sampleId: sample.id, schemaVersion: "V0.2", ...input, storageUri: null, status: "registered", createdAt: now };
+  const dataset = { id: crypto.randomUUID(), userId: owner, sampleId: sample.id, schemaVersion: "V0.2", ...input, storageUri: null, status: "registered" as const, createdAt: now };
   try {
     if (existingSample.length) await db.insert(testDatasets).values(dataset);
     else await db.batch([db.insert(cellSamples).values(sample), db.insert(testDatasets).values(dataset)]);
