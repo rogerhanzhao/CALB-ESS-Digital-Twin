@@ -213,3 +213,45 @@ git diff --stat origin/main...HEAD          # 自己领先多少
 并检查 `docs/design-review.md` §5 的勾选状态——那是里程碑进度的唯一记录。
 
 不得依据对话记忆断言「某功能已实现」。**以 `git` 与 CI 结果为准。**
+
+---
+
+## 8. 启动动作（Kickoff）
+
+本方案的**第一次交叉审核，就是审核提出本方案的那个 PR**。在 M1 开工前按顺序执行：
+
+### 第 1 步　CODEX 审核 PR #1（M0）
+
+PR #1 `V0.1 design review` 目前为 **draft，未合并**，`main` 仍停在 `5e4c23e`。
+CODEX 作为 Agent-A，对其中 **Agent-B 的 Primary 区域**（`web/`）执行 §4 checklist，
+重点核对三项——它们是本次审核的核心结论，如果结论本身站不住，后续里程碑全部作废：
+
+1. `web/app/api/simulations/route.ts` 的 GET 是否真的不再写库；
+2. `deriveDemoView` 是否对 `engine !== 'demo'` 的行完全不作修改
+   （`web/lib/runs.ts`，对应 `web/tests/runs.test.ts` 的回归用例）；
+3. `drizzle/0003` 的回填是否会丢数据，以及旧行标记为 `engine = 'demo'` 是否成立。
+
+同时对 `docs/` 四份文档提出异议。**文档层面的分歧必须在此轮解决**——
+一旦 M1 开始并行实现，架构分歧的返工成本会陡增。
+
+### 第 2 步　双方就 §7 未决问题给出建议，由负责人决策
+
+Q1（计算面部署在哪）与 Q2（是否有真实老化数据集）**阻塞 M1 与 M2**，
+必须在第 3 步之前有答案。Q3–Q5 可以并行推进。
+
+### 第 3 步　合并 M0，双方从同一 `main` 切出 M1 分支
+
+此后按 §5 的「契约 → 并行实现 → 集成」节奏推进。
+M1-C（契约 PR）双签合并之前，**任何一方都不得开始 M1-A / M1-B 的实现**。
+
+### 当前实时状态（写入时点：M0 提交后）
+
+| 项 | 状态 |
+|---|---|
+| `main` | `5e4c23e`，未包含本次审核 |
+| PR #1 | open / draft / mergeable，2 commits，23 files |
+| Python 内核 | 仍为空壳，全部实现代码仅 `__version__` 一行 |
+| CI | 仍不存在（`.github/workflows/` 未建立） |
+| 计算面 | 未接入，控制面全部 run 均为 `engine = 'demo'` |
+
+此表会过期。**开工前一律以 §7 的命令重新读取，不要相信本表。**
