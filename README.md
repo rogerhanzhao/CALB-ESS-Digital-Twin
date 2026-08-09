@@ -55,6 +55,8 @@ Proprietary CALB cell and field data must not be committed to Git. Store local i
 
 Initial architecture scaffold. The next milestone is a single-cell LFP baseline model with a documented parameter set and a reproducible reference duty cycle.
 
+The first Web control plane is under `web/`. It provides a user-specific persistent task queue and a simulation dashboard. Production compute sizing, background-job behavior, and recovery requirements are documented in `docs/deployment-and-capacity.md`.
+
 ## License
 
 Proprietary — internal use unless a separate license is approved.
