@@ -16,11 +16,13 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@contracts/*": ["../contracts/*"]
     }
   },
   "include": [
     "next-env.d.ts",
+    "../contracts/generated/*.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
