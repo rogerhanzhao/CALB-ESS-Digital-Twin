@@ -276,8 +276,13 @@ assumptions, run identifiers”，但 `web/db/schema.ts` 中**一项都没有**�
       删除永远不可能通过的脚手架死测试（§P2-1）
 - [x] `docs/collaboration-claude-codex.md`：双智能体协同与交叉审核方案
 
-M0 未包含（明确留给后续里程碑）：CI 门禁、`contracts/`、`compute/` 骨架、R2 绑定、
-Python 内核实现、`configs/*.yaml` 的 pydantic 校验。
+- [x] CI 门禁：`.github/workflows/ci.yml`（计算面 ruff + pytest；控制面 lint + tsc + build + test；
+      迁移漂移检查）。同时修复 `db/index.ts` / `worker/index.ts` 的 3 个既有类型错误，
+      使 `tsc` 具备 gate 资格
+- [x] `.github/pull_request_template.md`：把 §4 交叉审核 checklist 变成每个 PR 的强制项
+
+M0 未包含（明确留给后续里程碑）：`contracts/`、`compute/` 骨架、R2 绑定、
+Python 内核实现、`configs/*.yaml` 的 pydantic 校验、契约一致性 CI job（随 M1-C 落地）。
 
 ### M1（下一步，建议优先）
 

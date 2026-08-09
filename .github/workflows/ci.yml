@@ -1,0 +1,87 @@
+name: CI
+
+# The gate the project has never had. Before this workflow, `npm test` failed on
+# every commit in the repository's history (see docs/design-review.md P2-1) and
+# nothing checked the Python side at all.
+#
+# The cross-validation layers in docs/collaboration-claude-codex.md rely on this
+# running: contract consistency, golden cases, and differential tests are only
+# useful if something enforces them on every pull request.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Compute plane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: pytest -q
+
+  web:
+    name: Control plane
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build and test
+        run: npm test
+
+  migrations:
+    name: Migrations in sync
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # Catches a schema edit that shipped without its migration. Drizzle writes
+      # nothing when the snapshots already match, so any diff here is a gap.
+      - name: Regenerate and check for drift
+        run: |
+          npm run db:generate
+          git diff --exit-code -- drizzle/ \
+            || { echo "::error::db/schema.ts changed without a matching migration. Run 'npm run db:generate' and commit the result."; exit 1; }
+          test -z "$(git ls-files --others --exclude-standard -- drizzle/)" \
+            || { echo "::error::db:generate produced a new migration that was not committed."; exit 1; }
+
+  # The contract-consistency job lands with M1-C, once contracts/ exists: it will
+  # regenerate the JSON Schema and the control-plane TypeScript types from the
+  # pydantic definitions and fail on any diff. See
+  # docs/collaboration-claude-codex.md section 3, layer L1.

@@ -36,6 +36,15 @@ Control plane
 - Added unit tests covering the validation and demonstrator-derivation rules, and removed a
   scaffold test that referenced a file this repository never contained.
 
+Engineering gates
+
+- Added continuous integration: ruff and pytest for the compute plane; lint, typecheck, build,
+  and tests for the control plane; and a check that the schema and its migrations stay in step.
+  The project had no working gate before this.
+- Declared the worker's runtime bindings so `tsc` runs clean and can gate, resolving three type
+  errors that predate the review.
+- Added a pull request template that carries the cross-review checklist.
+
 ## V0.1 — Initial platform foundation
 
 - Established the PyBaMM, CALB cell database, SOH engine, ESS dispatch, and warranty-analysis architecture.
