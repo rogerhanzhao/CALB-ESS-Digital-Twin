@@ -1,0 +1,146 @@
+{
+  "$defs": {
+    "ScenarioInput": {
+      "additionalProperties": false,
+      "properties": {
+        "ambient_temperature_c": {
+          "maximum": 60,
+          "minimum": -20,
+          "title": "Ambient Temperature C",
+          "type": "number"
+        },
+        "cell_param_set_version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cell Param Set Version"
+        },
+        "chemistry": {
+          "const": "LFP",
+          "default": "LFP",
+          "title": "Chemistry",
+          "type": "string"
+        },
+        "cycles_per_day": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Cycles Per Day",
+          "type": "number"
+        },
+        "depth_of_discharge": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Depth Of Discharge",
+          "type": "number"
+        },
+        "end_of_life_fraction": {
+          "maximum": 0.95,
+          "minimum": 0.5,
+          "title": "End Of Life Fraction",
+          "type": "number"
+        },
+        "horizon_years": {
+          "maximum": 25,
+          "minimum": 1,
+          "title": "Horizon Years",
+          "type": "integer"
+        },
+        "initial_soc": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Initial Soc",
+          "type": "number"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "horizon_years",
+        "cycles_per_day",
+        "depth_of_discharge",
+        "ambient_temperature_c",
+        "initial_soc",
+        "end_of_life_fraction"
+      ],
+      "title": "ScenarioInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "code_revision": {
+      "maxLength": 64,
+      "minLength": 7,
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "engine": {
+      "enum": [
+        "demo",
+        "stub",
+        "pybamm-spme",
+        "semi-empirical"
+      ],
+      "title": "Engine",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "scenario": {
+      "$ref": "#/$defs/ScenarioInput"
+    },
+    "scenario_id": {
+      "format": "uuid",
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "title": "Submitted At",
+      "type": "string"
+    },
+    "user_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "scenario_id",
+    "user_id",
+    "engine",
+    "model_version",
+    "code_revision",
+    "scenario"
+  ],
+  "title": "JobPayload",
+  "type": "object"
+}
