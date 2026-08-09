@@ -1,0 +1,17 @@
+project: calb-ess-digital-twin
+cell:
+  chemistry: LFP
+  model: placeholder
+  nominal_capacity_ah: null
+simulation:
+  ambient_temperature_c: 25
+  initial_soc: 0.5
+  horizon_years: 20
+soh:
+  end_of_life_fraction: 0.8
+dispatch:
+  cycles_per_day: 1
+  depth_of_discharge: 0.9
+warranty:
+  confidence_level: 0.95
+  augmentation_enabled: false
