@@ -13,3 +13,6 @@ data/processed/*
 !data/processed/.gitkeep
 artifacts/
 reports/generated/
+*.egg-info/
+build/
+dist/

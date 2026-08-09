@@ -39,3 +39,6 @@ yarn-error.log*
 /outputs/
 /work/
 /.sites-package.tar.gz
+
+# typescript incremental build info
+*.tsbuildinfo

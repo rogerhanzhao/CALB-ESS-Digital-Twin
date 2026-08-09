@@ -15,6 +15,20 @@
       "when": 1786237955909,
       "tag": "0001_yielding_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786242083882,
+      "tag": "0002_add_scenarios_runs_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786242089584,
+      "tag": "0003_backfill_and_drop_simulations",
+      "breakpoints": true
     }
   ]
 }

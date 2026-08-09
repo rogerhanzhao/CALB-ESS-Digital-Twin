@@ -59,6 +59,16 @@ Initial architecture scaffold. The next milestone is a single-cell LFP baseline 
 
 The first Web control plane is under `web/`. It provides a user-specific persistent task queue and a simulation dashboard. Production compute sizing, background-job behavior, and recovery requirements are documented in `docs/deployment-and-capacity.md`.
 
+The compute plane is not yet connected, so every run is currently served by the demonstrator progress engine, is stored with `engine = 'demo'`, and is labelled as such in the interface. Demonstrator output must not be used for commercial warranty decisions.
+
+## Design documents
+
+- `docs/architecture.md` — plane separation, the two-tier model strategy, cell-to-system translation, and auditability.
+- `docs/data-model.md` — control-plane persistence contract and write ownership.
+- `docs/deployment-and-capacity.md` — compute sizing, guardrails, availability, and recovery.
+- `docs/design-review.md` — V0.1 design review findings and the staged M0–M3 plan.
+- `docs/collaboration-claude-codex.md` — dual-agent development workflow and cross-review process.
+
 ## License
 
 Proprietary — internal use unless a separate license is approved.
