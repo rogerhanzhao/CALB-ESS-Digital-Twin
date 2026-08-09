@@ -1,0 +1,207 @@
+{
+  "$defs": {
+    "ResultPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "cumulative_throughput_mwh": {
+          "minimum": 0,
+          "title": "Cumulative Throughput Mwh",
+          "type": "number"
+        },
+        "resistance_growth": {
+          "minimum": 0,
+          "title": "Resistance Growth",
+          "type": "number"
+        },
+        "soh": {
+          "maximum": 1.1,
+          "minimum": 0,
+          "title": "Soh",
+          "type": "number"
+        },
+        "year": {
+          "minimum": 0,
+          "title": "Year",
+          "type": "number"
+        }
+      },
+      "required": [
+        "year",
+        "soh",
+        "resistance_growth",
+        "cumulative_throughput_mwh"
+      ],
+      "title": "ResultPoint",
+      "type": "object"
+    },
+    "Uncertainty": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence_level": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Confidence Level",
+          "type": "number"
+        },
+        "lower_soh": {
+          "anyOf": [
+            {
+              "maximum": 1.1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower Soh"
+        },
+        "source": {
+          "enum": [
+            "parameter_uncertainty",
+            "sample_variance",
+            "monte_carlo",
+            "extrapolation_error",
+            "combined",
+            "not_available"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "upper_soh": {
+          "anyOf": [
+            {
+              "maximum": 1.1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper Soh"
+        }
+      },
+      "required": [
+        "confidence_level",
+        "source"
+      ],
+      "title": "Uncertainty",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifact Checksums",
+      "type": "object"
+    },
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "end_soh": {
+      "anyOf": [
+        {
+          "maximum": 1.1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "End Soh"
+    },
+    "engine": {
+      "enum": [
+        "stub",
+        "pybamm-spme",
+        "semi-empirical"
+      ],
+      "title": "Engine",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "points": {
+      "items": {
+        "$ref": "#/$defs/ResultPoint"
+      },
+      "title": "Points",
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "uncertainty": {
+      "$ref": "#/$defs/Uncertainty"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "within_validity_envelope": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Within Validity Envelope"
+    }
+  },
+  "required": [
+    "job_id",
+    "engine",
+    "model_version",
+    "code_revision",
+    "status",
+    "uncertainty"
+  ],
+  "title": "RunResult",
+  "type": "object"
+}
