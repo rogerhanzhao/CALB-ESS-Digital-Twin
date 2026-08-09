@@ -1,0 +1,224 @@
+import type { runs, scenarios } from "../db/schema";
+
+/**
+ * Request validation and demonstrator-view derivation for simulation runs.
+ *
+ * Two rules from `docs/design-review.md` are enforced here rather than in the
+ * route handlers, so that they hold for every caller:
+ *
+ *  - Invalid input is rejected with an explicit error. It is never silently
+ *    clamped, and it can never reach the database as `NaN` (P1-3).
+ *  - Demonstrator progress is *derived*, never persisted. `deriveDemoView` is a
+ *    pure function of the stored row and the current clock (P0-2).
+ */
+
+/** Cell chemistries with an approved parameter set. Extend as `cell_database` publishes more. */
+export const APPROVED_CHEMISTRIES = ["LFP"] as const;
+export type Chemistry = (typeof APPROVED_CHEMISTRIES)[number];
+
+export const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
+
+export type ScenarioRow = typeof scenarios.$inferSelect;
+export type RunRow = typeof runs.$inferSelect;
+
+export type RunView = {
+  id: string;
+  scenarioId: string;
+  name: string;
+  chemistry: string;
+  cellParamSetVersion: string | null;
+  horizonYears: number;
+  cyclesPerDay: number;
+  depthOfDischarge: number;
+  ambientTemperatureC: number;
+  initialSoc: number;
+  eolFraction: number;
+  engine: string;
+  modelVersion: string | null;
+  codeRevision: string | null;
+  status: string;
+  progress: number;
+  endSoh: number | null;
+  withinValidityEnvelope: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+  /** True when the numbers above came from the demonstrator, not from a compute worker. */
+  demo: boolean;
+};
+
+export type CreateRunInput = {
+  name: string;
+  chemistry: Chemistry;
+  horizonYears: number;
+  cyclesPerDay: number;
+  depthOfDischarge: number;
+  ambientTemperatureC: number;
+  initialSoc: number;
+  eolFraction: number;
+};
+
+export type Validated<T> = { ok: true; value: T } | { ok: false; errors: string[] };
+
+type NumericField = {
+  key: keyof CreateRunInput;
+  min: number;
+  max: number;
+  fallback: number;
+  integer?: boolean;
+};
+
+const NUMERIC_FIELDS: NumericField[] = [
+  { key: "horizonYears", min: 1, max: 25, fallback: 20, integer: true },
+  { key: "cyclesPerDay", min: 0.25, max: 3, fallback: 1 },
+  { key: "depthOfDischarge", min: 0.1, max: 1, fallback: 0.9 },
+  { key: "ambientTemperatureC", min: -20, max: 60, fallback: 25 },
+  { key: "initialSoc", min: 0, max: 1, fallback: 0.5 },
+  { key: "eolFraction", min: 0.5, max: 0.95, fallback: 0.8 },
+];
+
+const MAX_NAME_LENGTH = 120;
+
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+export function parseCreateRunInput(payload: unknown): Validated<CreateRunInput> {
+  const errors: string[] = [];
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return { ok: false, errors: ["request body must be a JSON object"] };
+  }
+  const body = payload as Record<string, unknown>;
+
+  const rawName = body.name;
+  let name = "";
+  if (typeof rawName !== "string" || rawName.trim().length === 0) {
+    errors.push("name is required and must be a non-empty string");
+  } else if (rawName.trim().length > MAX_NAME_LENGTH) {
+    errors.push(`name must be at most ${MAX_NAME_LENGTH} characters`);
+  } else {
+    name = rawName.trim();
+  }
+
+  let chemistry: Chemistry = "LFP";
+  if (!isAbsent(body.chemistry)) {
+    if (!APPROVED_CHEMISTRIES.includes(body.chemistry as Chemistry)) {
+      errors.push(`chemistry must be one of: ${APPROVED_CHEMISTRIES.join(", ")}`);
+    } else {
+      chemistry = body.chemistry as Chemistry;
+    }
+  }
+
+  const numbers: Partial<Record<keyof CreateRunInput, number>> = {};
+  for (const field of NUMERIC_FIELDS) {
+    const raw = body[field.key];
+    if (isAbsent(raw)) {
+      numbers[field.key] = field.fallback;
+      continue;
+    }
+    // Reject rather than clamp: a value outside the supported range is a caller
+    // error, and clamping it would silently change what was simulated.
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      errors.push(`${field.key} must be a finite number`);
+      continue;
+    }
+    if (field.integer && !Number.isInteger(raw)) {
+      errors.push(`${field.key} must be an integer`);
+      continue;
+    }
+    if (raw < field.min || raw > field.max) {
+      errors.push(`${field.key} must be between ${field.min} and ${field.max}`);
+      continue;
+    }
+    numbers[field.key] = raw;
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      name,
+      chemistry,
+      horizonYears: numbers.horizonYears!,
+      cyclesPerDay: numbers.cyclesPerDay!,
+      depthOfDischarge: numbers.depthOfDischarge!,
+      ambientTemperatureC: numbers.ambientTemperatureC!,
+      initialSoc: numbers.initialSoc!,
+      eolFraction: numbers.eolFraction!,
+    },
+  };
+}
+
+export function parseIdempotencyKey(request: Request): string | null {
+  const key = request.headers.get("idempotency-key");
+  if (!key) return null;
+  const trimmed = key.trim();
+  return trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
+}
+
+/** Wall-clock milliseconds the demonstrator takes to advance one percent. */
+const DEMO_MS_PER_PERCENT = 1800;
+
+/**
+ * Illustrative end-of-life value for demonstrator rows.
+ *
+ * This is a placeholder shape carried over from V0.1, not a model. It exists so the
+ * interface has something to lay out before a compute worker is connected, and it is
+ * only ever attached to rows carrying `engine = 'demo'`.
+ */
+function demoEndSoh(horizonYears: number, cyclesPerDay: number): number {
+  return Number((84.6 - horizonYears * 0.17 - cyclesPerDay * 0.4).toFixed(1));
+}
+
+export function toRunView(run: RunRow, scenario: ScenarioRow): RunView {
+  return {
+    id: run.id,
+    scenarioId: scenario.id,
+    name: scenario.name,
+    chemistry: scenario.chemistry,
+    cellParamSetVersion: scenario.cellParamSetVersion,
+    horizonYears: scenario.horizonYears,
+    cyclesPerDay: scenario.cyclesPerDay,
+    depthOfDischarge: scenario.depthOfDischarge,
+    ambientTemperatureC: scenario.ambientTemperatureC,
+    initialSoc: scenario.initialSoc,
+    eolFraction: scenario.eolFraction,
+    engine: run.engine,
+    modelVersion: run.modelVersion,
+    codeRevision: run.codeRevision,
+    status: run.status,
+    progress: run.progress,
+    endSoh: run.endSoh,
+    withinValidityEnvelope:
+      run.withinValidityEnvelope === null ? null : run.withinValidityEnvelope === 1,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    demo: run.engine === "demo",
+  };
+}
+
+/**
+ * Advance a demonstrator row for display only.
+ *
+ * The caller must not persist the result. Rows produced by a real compute worker
+ * (`engine !== 'demo'`) are returned untouched — their progress belongs to the worker
+ * holding the lease, and overwriting it here is exactly the race the V0.1 read path
+ * introduced.
+ */
+export function deriveDemoView(view: RunView, now: number = Date.now()): RunView {
+  if (!view.demo) return view;
+  if ((TERMINAL_STATUSES as readonly string[]).includes(view.status)) return view;
+
+  const elapsed = now - Date.parse(view.createdAt);
+  if (!Number.isFinite(elapsed) || elapsed < 0) return view;
+
+  const progress = Math.min(100, Math.max(view.progress, Math.floor(elapsed / DEMO_MS_PER_PERCENT)));
+  const status = progress >= 100 ? "completed" : progress > 4 ? "running" : "queued";
+
+  return {
+    ...view,
+    progress,
+    status,
+    endSoh: progress >= 100 ? demoEndSoh(view.horizonYears, view.cyclesPerDay) : null,
+  };
+}

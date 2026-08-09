@@ -1,44 +1,134 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { simulations } from "../../../db/schema";
+import { runs, scenarios } from "../../../db/schema";
+import {
+  deriveDemoView,
+  parseCreateRunInput,
+  parseIdempotencyKey,
+  toRunView,
+} from "../../../lib/runs";
+
+const DEFAULT_LIMIT = 30;
+const MAX_LIMIT = 100;
 
 function userId(request: Request) {
   return request.headers.get("oai-authenticated-user-id");
 }
 
-function advance<T extends typeof simulations.$inferSelect>(run: T): T {
-  if (run.status === "completed" || run.status === "failed") return run;
-  const elapsed = Date.now() - new Date(run.createdAt).getTime();
-  const progress = Math.min(100, Math.max(run.progress, Math.floor(elapsed / 1800)));
-  return { ...run, progress, status: progress >= 100 ? "completed" : progress > 4 ? "running" : "queued", endSoh: progress >= 100 ? Number((84.6 - run.horizonYears * 0.17 - run.cyclesPerDay * 0.4).toFixed(1)) : null };
+function unauthorized() {
+  return Response.json({ error: "Authentication required" }, { status: 401 });
 }
 
+function parsePaging(url: URL) {
+  const rawLimit = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
+  const rawOffset = Number(url.searchParams.get("offset") ?? 0);
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : DEFAULT_LIMIT;
+  const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+  return { limit, offset };
+}
+
+/**
+ * List the caller's runs.
+ *
+ * Strictly read-only. Demonstrator progress is derived in the response and never
+ * written back — see `docs/design-review.md` P0-2 for why the V0.1 read path could
+ * not stay as it was.
+ */
 export async function GET(request: Request) {
   const owner = userId(request);
-  if (!owner) return Response.json({ error: "Authentication required" }, { status: 401 });
+  if (!owner) return unauthorized();
+
+  const { limit, offset } = parsePaging(new URL(request.url));
   const db = getDb();
-  const rows = await db.select().from(simulations).where(eq(simulations.userId, owner)).orderBy(desc(simulations.createdAt)).limit(30);
-  const advanced = rows.map(advance);
-  for (const run of advanced) {
-    const previous = rows.find((row) => row.id === run.id);
-    if (previous && (run.progress !== previous.progress || run.status !== previous.status)) {
-      await db.update(simulations).set({ progress: run.progress, status: run.status, endSoh: run.endSoh, updatedAt: new Date().toISOString() }).where(and(eq(simulations.id, run.id), eq(simulations.userId, owner)));
-    }
-  }
-  return Response.json({ simulations: advanced });
+  const rows = await db
+    .select({ run: runs, scenario: scenarios })
+    .from(runs)
+    .innerJoin(scenarios, eq(runs.scenarioId, scenarios.id))
+    .where(eq(runs.userId, owner))
+    .orderBy(desc(runs.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const simulations = rows.map(({ run, scenario }) => deriveDemoView(toRunView(run, scenario)));
+  return Response.json({ simulations, limit, offset });
 }
 
+/** Create a scenario and queue one run against it. */
 export async function POST(request: Request) {
   const owner = userId(request);
-  if (!owner) return Response.json({ error: "Authentication required" }, { status: 401 });
-  const payload = (await request.json()) as { name?: string; chemistry?: string; horizonYears?: number; cyclesPerDay?: number };
-  const name = payload.name?.trim();
-  const horizonYears = Math.min(25, Math.max(1, Number(payload.horizonYears ?? 20)));
-  const cyclesPerDay = Math.min(3, Math.max(0.25, Number(payload.cyclesPerDay ?? 1)));
-  if (!name) return Response.json({ error: "name is required" }, { status: 400 });
-  const now = new Date().toISOString();
-  const simulation = { id: `ESS-${Date.now().toString(36).toUpperCase()}`, userId: owner, name, chemistry: payload.chemistry ?? "LFP", horizonYears, cyclesPerDay, status: "queued", progress: 0, endSoh: null, createdAt: now, updatedAt: now };
+  if (!owner) return unauthorized();
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return Response.json({ error: "request body must be valid JSON" }, { status: 400 });
+  }
+
+  const parsed = parseCreateRunInput(payload);
+  if (!parsed.ok) {
+    return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
+  }
+  const input = parsed.value;
+  const idempotencyKey = parseIdempotencyKey(request);
   const db = getDb();
-  await db.insert(simulations).values(simulation);
-  return Response.json({ simulation }, { status: 201 });
+
+  // A retried submission carrying the same key must not create a second run.
+  if (idempotencyKey) {
+    const existing = await db
+      .select({ run: runs, scenario: scenarios })
+      .from(runs)
+      .innerJoin(scenarios, eq(runs.scenarioId, scenarios.id))
+      .where(and(eq(runs.userId, owner), eq(runs.idempotencyKey, idempotencyKey)))
+      .limit(1);
+    if (existing.length > 0) {
+      const view = toRunView(existing[0].run, existing[0].scenario);
+      return Response.json({ simulation: deriveDemoView(view) }, { status: 200 });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const scenario = {
+    id: crypto.randomUUID(),
+    userId: owner,
+    name: input.name,
+    chemistry: input.chemistry,
+    cellParamSetVersion: null,
+    horizonYears: input.horizonYears,
+    cyclesPerDay: input.cyclesPerDay,
+    depthOfDischarge: input.depthOfDischarge,
+    ambientTemperatureC: input.ambientTemperatureC,
+    initialSoc: input.initialSoc,
+    eolFraction: input.eolFraction,
+    createdAt: now,
+  };
+  const run = {
+    id: crypto.randomUUID(),
+    scenarioId: scenario.id,
+    userId: owner,
+    idempotencyKey,
+    // No compute worker is connected yet, so this run can only be served by the
+    // demonstrator. The marker is permanent and is surfaced by the API and the UI.
+    engine: "demo",
+    modelVersion: null,
+    codeRevision: null,
+    status: "queued",
+    progress: 0,
+    endSoh: null,
+    attempt: 0,
+    leaseExpiresAt: null,
+    heartbeatAt: null,
+    checkpointUri: null,
+    error: null,
+    withinValidityEnvelope: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.batch([
+    db.insert(scenarios).values(scenario),
+    db.insert(runs).values(run),
+  ]);
+
+  return Response.json({ simulation: toRunView(run, scenario) }, { status: 201 });
 }
