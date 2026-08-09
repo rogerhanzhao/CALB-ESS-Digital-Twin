@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { runs, scenarios } from "../../../../db/schema";
-import { TERMINAL_STATUSES, deriveDemoView, toRunView } from "../../../../lib/runs";
+import { cancellability, deriveDemoView, toRunView } from "../../../../lib/runs";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -51,11 +51,11 @@ export async function DELETE(request: Request, { params }: Context) {
   const row = await loadOwnedRun(id, owner);
   if (!row) return Response.json({ error: "not found" }, { status: 404 });
 
-  if ((TERMINAL_STATUSES as readonly string[]).includes(row.run.status)) {
-    return Response.json(
-      { error: `run is already ${row.run.status}` },
-      { status: 409 },
-    );
+  // Terminality is judged on the derived view, not the stored row — see
+  // `cancellability` for why.
+  const verdict = cancellability(toRunView(row.run, row.scenario));
+  if (!verdict.cancellable) {
+    return Response.json({ error: `run is already ${verdict.status}` }, { status: 409 });
   }
 
   const db = getDb();

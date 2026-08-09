@@ -36,6 +36,17 @@ Control plane
 - Added unit tests covering the validation and demonstrator-derivation rules, and removed a
   scaffold test that referenced a file this repository never contained.
 
+Cross-review revisions (CODEX, round one)
+
+- Only an omitted field now falls back to a default. An explicit `null`, an empty string, or a
+  wrong type is rejected, since defaulting them would silently run a different simulation than
+  the caller described.
+- A malformed `Idempotency-Key` header is rejected rather than ignored. Discarding it quietly
+  dropped the retry guarantee at the one moment it was supposed to hold, producing a duplicate
+  run.
+- Cancellation now judges terminality on the derived view rather than the stored row, so a
+  demonstrator run the interface has already shown as completed can no longer be cancelled.
+
 Engineering gates
 
 - Added continuous integration: ruff and pytest for the compute plane; lint, typecheck, build,

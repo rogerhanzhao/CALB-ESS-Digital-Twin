@@ -2,7 +2,7 @@
 
 - 适用范围：`CALB-ESS-Digital-Twin` 全仓库
 - 基线文档：`docs/design-review.md`（设计结论）、`docs/architecture.md`（架构）、`docs/data-model.md`（持久化契约）
-- 文档状态：**待双方确认后生效**
+- 文档状态：**评审中** — 随 PR #1 一并接受 CODEX 交叉审核（#2）。合并后生效。
 
 ---
 
@@ -222,7 +222,7 @@ git diff --stat origin/main...HEAD          # 自己领先多少
 
 ### 第 1 步　CODEX 审核 PR #1（M0）
 
-PR #1 `V0.1 design review` 目前为 **draft，未合并**，`main` 仍停在 `5e4c23e`。
+PR #1 `V0.1 design review` 已 **ready for review，尚未合并**，`main` 仍停在 `5e4c23e`。
 CODEX 作为 Agent-A，对其中 **Agent-B 的 Primary 区域**（`web/`）执行 §4 checklist，
 重点核对三项——它们是本次审核的核心结论，如果结论本身站不住，后续里程碑全部作废：
 
@@ -236,8 +236,15 @@ CODEX 作为 Agent-A，对其中 **Agent-B 的 Primary 区域**（`web/`）执�
 
 ### 第 2 步　双方就 §7 未决问题给出建议，由负责人决策
 
-Q1（计算面部署在哪）与 Q2（是否有真实老化数据集）**阻塞 M1 与 M2**，
-必须在第 3 步之前有答案。Q3–Q5 可以并行推进。
+**M1 不等待任何决策。** 工程闭环可以先行，前提是替身必须是显式的：
+
+- Q1（计算面部署在哪）——先用**可替换的本地 Docker adapter**，队列与存储走接口抽象，
+  云端目标待决策后落位，不改上层代码。
+- Q2（是否有真实老化数据集）——M1 用**显式标注的 synthetic fixture / stub result**。
+  标注规则与 `engine = 'demo'` 一致：合成数据在库内、API 与界面上都必须自我声明，
+  且不得用于质保结论。Q2 真正阻塞的是 **M2 的标定与可信 SOH 交付**。
+
+Q3–Q5 并行推进，均不阻塞 M1。
 
 ### 第 3 步　合并 M0，双方从同一 `main` 切出 M1 分支
 
@@ -254,8 +261,8 @@ GitHub 是唯一的共享状态。当前工单：
 | #2 | CODEX 交叉审核 PR #1（M0） | CODEX 审 / Claude 修 | — |
 | #3 | 五个待决策问题（Q1–Q5） | 项目负责人 | — |
 | #4 | M1-C `contracts/` 契约 | 双方双签 | #2 |
-| #5 | M1-A `compute/` 计算面骨架 | CODEX 实现 / Claude 审 | #4、Q1 |
-| #6 | M1-B 控制面接队列与 R2 | Claude 实现 / CODEX 审 | #4、Q1 |
+| #5 | M1-A `compute/` 计算面骨架 | CODEX 实现 / Claude 审 | #4 |
+| #6 | M1-B 控制面接队列与 R2 | Claude 实现 / CODEX 审 | #4 |
 | #7 | M1-I 端到端集成与三层交叉验证 | 双方 | #5、#6 |
 
 强制机制：
@@ -267,14 +274,15 @@ GitHub 是唯一的共享状态。当前工单：
 > 说明：`CODEOWNERS` 未采用。两个智能体都以同一个 GitHub 账号推送，
 > 基于身份的强制审核在此形同虚设；所有权靠 §1 的约定与 PR 模板的声明字段维持。
 
-### 当前实时状态（写入时点：M0 提交后）
+### 当前实时状态（写入时点：CODEX 首轮交叉审核修订后）
 
 | 项 | 状态 |
 |---|---|
 | `main` | `5e4c23e`，未包含本次审核 |
-| PR #1 | open / draft / mergeable，2 commits，23 files |
+| PR #1 | open / ready for review / mergeable |
+| CODEX 首轮审核 | 5 条意见全部采纳并修订，等待复核 |
 | Python 内核 | 仍为空壳，全部实现代码仅 `__version__` 一行 |
-| CI | 仍不存在（`.github/workflows/` 未建立） |
+| CI | 已建立，三个 job 全绿 |
 | 计算面 | 未接入，控制面全部 run 均为 `engine = 'demo'` |
 
 此表会过期。**开工前一律以 §7 的命令重新读取，不要相信本表。**

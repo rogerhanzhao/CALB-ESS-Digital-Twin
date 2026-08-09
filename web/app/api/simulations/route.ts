@@ -70,7 +70,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
   }
   const input = parsed.value;
-  const idempotencyKey = parseIdempotencyKey(request);
+
+  const key = parseIdempotencyKey(request);
+  if (!key.ok) {
+    return Response.json({ error: "invalid request", details: key.errors }, { status: 400 });
+  }
+  const idempotencyKey = key.value;
   const db = getDb();
 
   // A retried submission carrying the same key must not create a second run.

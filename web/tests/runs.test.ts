@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveDemoView, parseCreateRunInput, type RunView } from "../lib/runs.ts";
+import {
+  cancellability,
+  deriveDemoView,
+  parseCreateRunInput,
+  parseIdempotencyKey,
+  type RunView,
+} from "../lib/runs.ts";
 
 function errorsFor(payload: unknown): string[] {
   const result = parseCreateRunInput(payload);
@@ -56,9 +62,29 @@ test("parseCreateRunInput rejects non-finite numbers instead of storing NaN", ()
   }
 });
 
-test("parseCreateRunInput treats null and empty string as absent, not invalid", () => {
-  assert.equal(valueOf({ name: "n", horizonYears: null }).horizonYears, 20);
-  assert.equal(valueOf({ name: "n", cyclesPerDay: "" }).cyclesPerDay, 1);
+// Only an omitted field defaults. An explicit null or empty string is a caller error:
+// defaulting it would silently run a different simulation than the caller described.
+test("parseCreateRunInput rejects explicit null and empty string", () => {
+  for (const bad of [null, ""]) {
+    assert.ok(
+      errorsFor({ name: "n", horizonYears: bad }).some((e) => e.includes("horizonYears")),
+      `accepted ${JSON.stringify(bad)} for horizonYears`,
+    );
+    assert.ok(
+      errorsFor({ name: "n", chemistry: bad }).some((e) => e.includes("chemistry")),
+      `accepted ${JSON.stringify(bad)} for chemistry`,
+    );
+  }
+});
+
+test("parseCreateRunInput defaults only when the field is omitted", () => {
+  assert.equal(valueOf({ name: "n" }).horizonYears, 20);
+  assert.equal(valueOf({ name: "n", horizonYears: undefined }).horizonYears, 20);
+});
+
+test("parseCreateRunInput error messages say how to get the default", () => {
+  assert.ok(errorsFor({ name: "n", horizonYears: null }).some((e) => e.includes("omit the field")));
+  assert.ok(errorsFor({ name: "n", chemistry: "NMC" }).some((e) => e.includes("omit the field")));
 });
 
 // Regression guard for docs/design-review.md P1-3: out-of-range input must be an
@@ -77,6 +103,32 @@ test("parseCreateRunInput requires horizonYears to be an integer", () => {
 test("parseCreateRunInput reports every problem at once", () => {
   const errors = errorsFor({ name: "", chemistry: "NMC", horizonYears: 99 });
   assert.ok(errors.length >= 3, `expected several errors, got ${JSON.stringify(errors)}`);
+});
+
+function keyRequest(headers: Record<string, string>) {
+  return new Request("https://app.local/api/simulations", { method: "POST", headers });
+}
+
+test("parseIdempotencyKey reports an absent header as absent, not invalid", () => {
+  const result = parseIdempotencyKey(keyRequest({}));
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.value, null);
+});
+
+test("parseIdempotencyKey accepts and trims a usable key", () => {
+  const result = parseIdempotencyKey(keyRequest({ "idempotency-key": "  abc-123  " }));
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.value, "abc-123");
+});
+
+// A caller that sent a key is relying on retry safety. Dropping a malformed key
+// silently would surface as a duplicate run on the retry, which is the one moment
+// the guarantee was supposed to hold.
+test("parseIdempotencyKey rejects a malformed key rather than ignoring it", () => {
+  for (const bad of ["", "   ", "k".repeat(201)]) {
+    const result = parseIdempotencyKey(keyRequest({ "idempotency-key": bad }));
+    assert.equal(result.ok, false, `accepted ${JSON.stringify(bad.slice(0, 12))}`);
+  }
 });
 
 const baseView: RunView = {
@@ -144,4 +196,32 @@ test("deriveDemoView never regresses stored progress", () => {
 
 test("deriveDemoView tolerates a clock that runs behind the record", () => {
   assert.deepEqual(deriveDemoView(baseView, createdAtMs - 60_000), baseView);
+});
+
+// A demonstrator run reads as completed long before its stored status changes, because
+// demonstrator progress is never persisted. Cancellation must agree with what the caller
+// was shown, not with the stale stored row.
+test("cancellability refuses a demo run that already reads as completed", () => {
+  const stored: RunView = { ...baseView, status: "queued", progress: 0 };
+  const verdict = cancellability(stored, createdAtMs + 1_000_000);
+  assert.equal(verdict.cancellable, false);
+  assert.equal(verdict.cancellable === false && verdict.status, "completed");
+});
+
+test("cancellability allows a demo run that is still in flight", () => {
+  assert.equal(cancellability(baseView, createdAtMs + 90_000).cancellable, true);
+});
+
+test("cancellability refuses a run already in a terminal stored state", () => {
+  for (const status of ["completed", "failed", "cancelled"]) {
+    const done: RunView = { ...baseView, status, progress: 100 };
+    const verdict = cancellability(done, createdAtMs + 1_000_000);
+    assert.equal(verdict.cancellable, false, `allowed cancelling a ${status} run`);
+    assert.equal(verdict.cancellable === false && verdict.status, status);
+  }
+});
+
+test("cancellability judges worker-owned runs on their stored status alone", () => {
+  const real: RunView = { ...baseView, engine: "pybamm", demo: false, status: "running" };
+  assert.equal(cancellability(real, createdAtMs + 10_000_000).cancellable, true);
 });
