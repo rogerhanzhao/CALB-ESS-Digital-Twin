@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import socket
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from threading import Event, Thread
 
 from calb_ess_digital_twin.pybamm_models.runner import run_spme_reference
 from contracts.models import JobPayload, RunResult, Uncertainty
@@ -33,21 +36,59 @@ def execute_job(payload: JobPayload) -> RunResult:
     )
 
 
-def run_once(store: JobStore, worker_id: str) -> bool:
-    row = store.claim(worker_id)
+@contextmanager
+def keep_lease_alive(
+    store: JobStore,
+    job_id: str,
+    worker_id: str,
+    lease_seconds: int,
+    heartbeat_interval: float,
+) -> Iterator[Event]:
+    """Renew the lease while numerical work runs and signal if ownership is lost."""
+    stop = Event()
+    lost = Event()
+
+    def renew() -> None:
+        while not stop.wait(heartbeat_interval):
+            if not store.heartbeat(job_id, worker_id, lease_seconds):
+                lost.set()
+                return
+
+    thread = Thread(target=renew, name=f"heartbeat-{job_id}", daemon=True)
+    thread.start()
+    try:
+        yield lost
+    finally:
+        stop.set()
+        thread.join(timeout=max(heartbeat_interval * 2, 1))
+
+
+def run_once(
+    store: JobStore,
+    worker_id: str,
+    lease_seconds: int = 60,
+    heartbeat_interval: float | None = None,
+) -> bool:
+    row = store.claim(worker_id, lease_seconds=lease_seconds)
     if row is None:
         return False
     job_id = row["id"]
     try:
         payload = JobPayload.model_validate_json(row["payload"])
-        store.checkpoint(job_id, worker_id, {"phase": "validated"})
-        result = execute_job(payload)
+        interval = heartbeat_interval or max(lease_seconds / 3, 1)
+        with keep_lease_alive(store, job_id, worker_id, lease_seconds, interval) as lease_lost:
+            result = execute_job(payload)
+        if lease_lost.is_set():
+            raise RuntimeError("worker lost its lease during execution")
         if not store.complete(job_id, worker_id, result.model_dump(mode="json")):
             raise RuntimeError("worker lost its lease before completion")
     # A worker boundary must convert every job failure into durable state so the
     # process survives malformed payloads and numerical-engine exceptions.
     except Exception as exc:  # noqa: BLE001
-        store.fail(job_id, worker_id, str(exc))
+        recorded = store.fail(job_id, worker_id, str(exc))
+        if not recorded:
+            # A new owner may already be processing an expired lease. Do not overwrite it.
+            return True
     return True
 
 

@@ -1,8 +1,10 @@
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
+from contracts.export_schema import export
 from contracts.models import JobPayload, ScenarioInput
 
 
@@ -39,3 +41,24 @@ def test_contract_rejects_unknown_fields() -> None:
     data["invented"] = True
     with pytest.raises(ValidationError):
         JobPayload.model_validate(data)
+
+
+def test_calendar_only_scenario_allows_zero_cycles_and_depth() -> None:
+    scenario = valid_job().scenario.model_copy(
+        update={"cycles_per_day": 0.0, "depth_of_discharge": 0.0}
+    )
+    assert ScenarioInput.model_validate(scenario.model_dump()).cycles_per_day == 0
+
+
+def test_cycling_scenario_rejects_zero_depth() -> None:
+    data = valid_job().scenario.model_dump()
+    data["depth_of_discharge"] = 0.0
+    with pytest.raises(ValidationError):
+        ScenarioInput.model_validate(data)
+
+
+def test_generated_contracts_are_current(tmp_path: Path) -> None:
+    export(tmp_path)
+    committed = Path("contracts/generated")
+    for generated in sorted(tmp_path.iterdir()):
+        assert generated.read_bytes() == (committed / generated.name).read_bytes()

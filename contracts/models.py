@@ -16,13 +16,19 @@ class StrictModel(BaseModel):
 class ScenarioInput(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     chemistry: Literal["LFP"] = "LFP"
-    cell_param_set_version: str = Field(min_length=1)
+    cell_param_set_version: str | None = Field(default=None, min_length=1)
     horizon_years: int = Field(ge=1, le=25)
     cycles_per_day: float = Field(ge=0, le=3)
-    depth_of_discharge: float = Field(gt=0, le=1)
+    depth_of_discharge: float = Field(ge=0, le=1)
     ambient_temperature_c: float = Field(ge=-20, le=60)
     initial_soc: float = Field(ge=0, le=1)
     end_of_life_fraction: float = Field(ge=0.5, le=0.95)
+
+    @model_validator(mode="after")
+    def cycling_requires_positive_depth(self) -> ScenarioInput:
+        if self.cycles_per_day > 0 and self.depth_of_discharge == 0:
+            raise ValueError("depth_of_discharge must be positive when cycles_per_day is positive")
+        return self
 
 
 class JobPayload(StrictModel):
@@ -30,11 +36,20 @@ class JobPayload(StrictModel):
     job_id: UUID
     scenario_id: UUID
     user_id: str = Field(min_length=1, max_length=200)
-    engine: Literal["stub", "pybamm-spme", "semi-empirical"]
+    engine: Literal["demo", "stub", "pybamm-spme", "semi-empirical"]
     model_version: str = Field(min_length=1)
     code_revision: str = Field(min_length=7, max_length=64)
     scenario: ScenarioInput
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def numerical_engines_require_parameters(self) -> JobPayload:
+        if (
+            self.engine in {"pybamm-spme", "semi-empirical"}
+            and self.scenario.cell_param_set_version is None
+        ):
+            raise ValueError("numerical engines require cell_param_set_version")
+        return self
 
 
 class ResultPoint(StrictModel):
@@ -71,7 +86,7 @@ class Uncertainty(StrictModel):
 class RunResult(StrictModel):
     contract_version: Literal["1.0"] = "1.0"
     job_id: UUID
-    engine: Literal["stub", "pybamm-spme", "semi-empirical"]
+    engine: Literal["demo", "stub", "pybamm-spme", "semi-empirical"]
     model_version: str
     code_revision: str
     status: Literal["completed", "failed", "cancelled"]

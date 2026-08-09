@@ -10,9 +10,17 @@
           "type": "number"
         },
         "cell_param_set_version": {
-          "minLength": 1,
-          "title": "Cell Param Set Version",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cell Param Set Version"
         },
         "chemistry": {
           "const": "LFP",
@@ -27,8 +35,8 @@
           "type": "number"
         },
         "depth_of_discharge": {
-          "exclusiveMinimum": 0,
           "maximum": 1,
+          "minimum": 0,
           "title": "Depth Of Discharge",
           "type": "number"
         },
@@ -59,7 +67,6 @@
       },
       "required": [
         "name",
-        "cell_param_set_version",
         "horizon_years",
         "cycles_per_day",
         "depth_of_discharge",
@@ -87,6 +94,7 @@
     },
     "engine": {
       "enum": [
+        "demo",
         "stub",
         "pybamm-spme",
         "semi-empirical"

@@ -132,6 +132,7 @@
     },
     "engine": {
       "enum": [
+        "demo",
         "stub",
         "pybamm-spme",
         "semi-empirical"

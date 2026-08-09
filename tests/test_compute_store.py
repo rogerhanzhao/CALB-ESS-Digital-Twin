@@ -1,6 +1,8 @@
+import time
 from datetime import timedelta
 from uuid import uuid4
 
+import compute.worker as worker_module
 from compute.store import JobStore, utcnow
 from compute.worker import run_once
 from contracts.models import JobPayload, ScenarioInput
@@ -63,3 +65,45 @@ def test_worker_completes_a_valid_stub_job(tmp_path) -> None:
     assert row is not None
     assert row["status"] == "completed"
     assert "no electrochemical" in row["result"]
+
+
+def test_worker_renews_lease_during_long_execution(tmp_path, monkeypatch) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    payload = JobPayload(
+        job_id=uuid4(),
+        scenario_id=uuid4(),
+        user_id="alex",
+        engine="stub",
+        model_version="stub-1",
+        code_revision="1234567",
+        scenario=ScenarioInput(
+            name="heartbeat",
+            cell_param_set_version=None,
+            horizon_years=1,
+            cycles_per_day=0.0,
+            depth_of_discharge=0.0,
+            ambient_temperature_c=25.0,
+            initial_soc=0.5,
+            end_of_life_fraction=0.8,
+        ),
+    )
+    original = worker_module.execute_job
+
+    def slow_job(job):
+        time.sleep(0.16)
+        return original(job)
+
+    monkeypatch.setattr(worker_module, "execute_job", slow_job)
+    heartbeats = 0
+    original_heartbeat = store.heartbeat
+
+    def counted_heartbeat(*args, **kwargs):
+        nonlocal heartbeats
+        heartbeats += 1
+        return original_heartbeat(*args, **kwargs)
+
+    monkeypatch.setattr(store, "heartbeat", counted_heartbeat)
+    assert store.enqueue(str(payload.job_id), payload.model_dump(mode="json"))
+    assert run_once(store, "worker-a", lease_seconds=1, heartbeat_interval=0.04)
+    assert heartbeats >= 2
+    assert store.get(str(payload.job_id))["status"] == "completed"
