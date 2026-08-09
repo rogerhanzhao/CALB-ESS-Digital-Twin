@@ -274,15 +274,58 @@ GitHub 是唯一的共享状态。当前工单：
 > 说明：`CODEOWNERS` 未采用。两个智能体都以同一个 GitHub 账号推送，
 > 基于身份的强制审核在此形同虚设；所有权靠 §1 的约定与 PR 模板的声明字段维持。
 
-### 当前实时状态（写入时点：CODEX 首轮交叉审核修订后）
+### 当前实时状态（写入时点：M0 合并后）
 
 | 项 | 状态 |
 |---|---|
-| `main` | `5e4c23e`，未包含本次审核 |
-| PR #1 | open / ready for review / mergeable |
-| CODEX 首轮审核 | 5 条意见全部采纳并修订，等待复核 |
-| Python 内核 | 仍为空壳，全部实现代码仅 `__version__` 一行 |
-| CI | 已建立，三个 job 全绿 |
-| 计算面 | 未接入，控制面全部 run 均为 `engine = 'demo'` |
+| `main` | `8700ba6`，已含 M0（文档、CI、PR 模板、控制面 P0 修复） |
+| PR #1 | **已合并** |
+| PR #8 | open / draft，`codex/m1-contract-compute`，基于合并前的 `main` |
+| Python 内核 | CODEX 已提交 contracts + compute worker + SPMe runner（尚未合并） |
+| CI | 已建立，`main` 上三个 job 全绿；**PR #8 尚未被 CI 覆盖** |
+| 计算面 | 未接入，控制面全部 run 仍为 `engine = 'demo'` |
+| 分支保护 | **未启用** —— 见 §9 |
 
 此表会过期。**开工前一律以 §7 的命令重新读取，不要相信本表。**
+
+---
+
+## 9. 强制闸门（Required gates）
+
+§1–§4 的全部规则都建立在一个前提上：**没有人绕过 PR 流程**。
+目前没有任何东西保证这一点 —— `main` 的 `protected` 为 `false`，
+任一方都可以把自己的 PR 直接合入，CI 红也能合。
+
+**在启用分支保护之前，本文件描述的交叉审核只是约定，不具备否决权。**
+这是整套机制最薄弱的一环，优先级高于任何里程碑。
+
+### 9.1 需要在 `main` 上启用的设置
+
+智能体无权配置（会话的 GitHub App token 缺 `administration` 权限，
+读写分支保护均返回 403），必须由仓库管理员在
+Settings → Branches → Add branch protection rule 中设置：
+
+| 设置 | 值 | 理由 |
+|---|---|---|
+| Require a pull request before merging | 开 | 否则一切审核可跳过 |
+| Require status checks to pass | 开 | 让 CI 具备否决权 |
+| → 必选 checks | `Control plane`、`Compute plane`、`Migrations in sync` | 见 `.github/workflows/ci.yml` |
+| → Require branches to be up to date | 开 | 防止基于陈旧 `main` 的分支带病合入（PR #8 即为此例） |
+| Require conversation resolution | 开 | 让 review finding 必须被处理，而非被忽略 |
+| Do not allow bypassing the above | 开 | 管理员不豁免，否则等于没开 |
+| Allow force pushes / deletions | 关 | 保护主干历史 |
+
+### 9.2 关于 “Require approvals” 的一个坑
+
+**不要先开 approvals。** 两个智能体都以同一个 GitHub 账号推送，
+而 GitHub **不允许作者审批自己的 PR**。若把 required approvals 设为 1，
+结果不是“审核变严”，而是**所有 PR 都无法合并**。
+
+可行路径二选一，需先验证：
+
+1. 确认 `chatgpt-codex-connector[bot]` 提交的 review 能否算作 approval
+   （它对 PR #1 提交过 review，但状态是 `commented` 而非 `approved`）。可以则设为 1。
+2. 为其中一个智能体配置独立的 GitHub 身份，使双方 PR 互为不同作者。
+
+在二者之一落实前，先只开 9.1 的设置。**status checks 与 conversation resolution
+已经能挡住绝大部分问题**：CI 红不能合，finding 未处理不能合。这两条不依赖身份。
