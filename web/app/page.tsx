@@ -75,7 +75,7 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">C</span><div><strong>CALB Twin</strong><small>ESS Intelligence</small></div></div>
+        <div className="brand"><span className="brand-mark"><i /><i /><i /></span><div><strong>ESS Digital Twin</strong><small>CALB · ENGINEERING PLATFORM</small></div></div>
         <nav aria-label="主导航">
           <a className="nav-item active" href="#overview"><span>⌁</span>仿真工作台</a>
           <a className="nav-item" href="#runs"><span>◫</span>任务与结果</a>
