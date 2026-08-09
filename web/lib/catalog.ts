@@ -29,6 +29,15 @@ export type DatasetInput = {
   unitSchema: string;
 };
 
+export type ExistingSampleIdentity = { productId: string; batchCode: string };
+
+/** A sample code is a physical identity: product and manufacturing batch cannot drift. */
+export function sampleReuseConflict(existing: ExistingSampleIdentity, incoming: Pick<DatasetInput, "productId" | "batchCode">): string | null {
+  if (existing.productId !== incoming.productId) return "Sample code already belongs to another product";
+  if (existing.batchCode !== incoming.batchCode) return "Sample code already belongs to another manufacturing batch";
+  return null;
+}
+
 function objectBody(payload: unknown): Record<string, unknown> | null {
   return typeof payload === "object" && payload !== null && !Array.isArray(payload)
     ? payload as Record<string, unknown>

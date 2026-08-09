@@ -1,10 +1,15 @@
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Persistence contract for the control plane. See `docs/data-model.md` for the
  * rationale, the write-ownership rules, and the migration from the V0.1 single
  * `simulations` table.
  */
+
+export const PRODUCT_STATUSES = ["draft", "under_review", "released", "retired"] as const;
+export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const;
+export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -16,11 +21,12 @@ export const cellProducts = sqliteTable("cell_products", {
   nominalCapacityAh: real("nominal_capacity_ah").notNull(),
   nominalVoltageV: real("nominal_voltage_v").notNull(),
   revision: text("revision").notNull(),
-  status: text("status").notNull().default("draft"),
+  status: text("status", { enum: PRODUCT_STATUSES }).notNull().default("draft"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_cell_products_user_created").on(table.userId, table.createdAt),
-  uniqueIndex("uq_cell_products_owner_model_revision").on(table.userId, table.model, table.revision),
+  uniqueIndex("uq_cell_products_owner_make_model_revision").on(table.userId, table.manufacturer, table.model, table.revision),
+  check("ck_cell_products_status", sql`${table.status} in ('draft', 'under_review', 'released', 'retired')`),
 ]);
 
 /** A physical test article. Its identity is stable across multiple test packages. */
@@ -45,7 +51,6 @@ export const testDatasets = sqliteTable("test_datasets", {
   schemaVersion: text("schema_version").notNull().default("V0.2"),
   name: text("name").notNull(),
   testType: text("test_type").notNull(),
-  batchCode: text("batch_code").notNull(),
   sourceLab: text("source_lab").notNull(),
   equipmentId: text("equipment_id").notNull(),
   operator: text("operator").notNull(),
@@ -56,11 +61,12 @@ export const testDatasets = sqliteTable("test_datasets", {
   checksumSha256: text("checksum_sha256"),
   rowCount: integer("row_count"),
   unitSchema: text("unit_schema").notNull(),
-  status: text("status").notNull().default("registered"),
+  status: text("status", { enum: DATASET_STATUSES }).notNull().default("registered"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_test_datasets_product_created").on(table.productId, table.createdAt),
   index("idx_test_datasets_user_created").on(table.userId, table.createdAt),
+  check("ck_test_datasets_status", sql`${table.status} in ('registered', 'validated', 'rejected')`),
 ]);
 
 /** Reproducible mapping/cleaning output derived from immutable source bytes. */
@@ -75,12 +81,13 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
   outputUri: text("output_uri"),
   outputChecksumSha256: text("output_checksum_sha256"),
   rowCount: integer("row_count"),
-  validationStatus: text("validation_status").notNull().default("pending"),
+  validationStatus: text("validation_status", { enum: VALIDATION_STATUSES }).notNull().default("pending"),
   validationReportUri: text("validation_report_uri"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("uq_dataset_revisions_dataset_revision").on(table.datasetId, table.revision),
   index("idx_dataset_revisions_user_created").on(table.userId, table.createdAt),
+  check("ck_dataset_revisions_validation_status", sql`${table.validationStatus} in ('pending', 'pass', 'warning', 'reject')`),
 ]);
 
 /** What is being studied. Never mutated in place: an edit produces a new row. */

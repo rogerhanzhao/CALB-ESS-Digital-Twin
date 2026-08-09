@@ -21,6 +21,6 @@ export async function POST(request: Request) {
   if (!parsed.ok) return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
   const product = { id: crypto.randomUUID(), userId: owner, ...parsed.value, status: "draft", createdAt: new Date().toISOString() };
   try { await getDb().insert(cellProducts).values(product); }
-  catch { return Response.json({ error: "A product with this model and revision already exists" }, { status: 409 }); }
+  catch { return Response.json({ error: "A product with this manufacturer, model, and revision already exists" }, { status: 409 }); }
   return Response.json({ product }, { status: 201 });
 }

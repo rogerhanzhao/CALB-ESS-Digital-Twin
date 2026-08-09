@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { cellProducts, cellSamples, testDatasets } from "../../../db/schema";
-import { parseDatasetInput } from "../../../lib/catalog";
+import { parseDatasetInput, sampleReuseConflict } from "../../../lib/catalog";
 
 function ownerOf(request: Request) { return request.headers.get("oai-authenticated-user-id"); }
 
@@ -22,13 +22,21 @@ export async function POST(request: Request) {
   const product = await getDb().select({ id: cellProducts.id }).from(cellProducts).where(and(eq(cellProducts.id, parsed.value.productId), eq(cellProducts.userId, owner))).limit(1);
   if (!product.length) return Response.json({ error: "Product not found" }, { status: 404 });
   const now = new Date().toISOString();
-  const existingSample = await getDb().select().from(cellSamples).where(and(eq(cellSamples.userId, owner), eq(cellSamples.sampleCode, parsed.value.sampleCode))).limit(1);
-  if (existingSample.length && existingSample[0].productId !== parsed.value.productId) return Response.json({ error: "Sample code already belongs to another product" }, { status: 409 });
+  const db = getDb();
+  const existingSample = await db.select().from(cellSamples).where(and(eq(cellSamples.userId, owner), eq(cellSamples.sampleCode, parsed.value.sampleCode))).limit(1);
+  if (existingSample.length) {
+    const conflict = sampleReuseConflict(existingSample[0], parsed.value);
+    if (conflict) return Response.json({ error: conflict }, { status: 409 });
+  }
   const sample = existingSample[0] ?? { id: crypto.randomUUID(), userId: owner, productId: parsed.value.productId, sampleCode: parsed.value.sampleCode, batchCode: parsed.value.batchCode, createdAt: now };
-  if (!existingSample.length) await getDb().insert(cellSamples).values(sample);
-  const { sampleCode: _sampleCode, ...input } = parsed.value;
-  void _sampleCode;
+  const { sampleCode: _sampleCode, batchCode: _batchCode, ...input } = parsed.value;
+  void _sampleCode; void _batchCode;
   const dataset = { id: crypto.randomUUID(), userId: owner, sampleId: sample.id, schemaVersion: "V0.2", ...input, storageUri: null, status: "registered", createdAt: now };
-  await getDb().insert(testDatasets).values(dataset);
+  try {
+    if (existingSample.length) await db.insert(testDatasets).values(dataset);
+    else await db.batch([db.insert(cellSamples).values(sample), db.insert(testDatasets).values(dataset)]);
+  } catch {
+    return Response.json({ error: "Sample or dataset conflicts with an existing record" }, { status: 409 });
+  }
   return Response.json({ dataset }, { status: 201 });
 }
