@@ -14,7 +14,7 @@ test("product validation rejects invented or invalid physical values", () => {
 });
 
 test("dataset validation requires provenance and validates checksums", () => {
-  const result = parseDatasetInput({ productId: "p1", name: "cycle batch", testType: "cycle_aging", batchCode: "B1", sourceLab: "Lab A", fileName: "cycle.csv", unitSchema: "time:s,current:A,voltage:V", checksumSha256: "bad" });
+  const result = parseDatasetInput({ productId: "p1", sampleCode: "S1", name: "cycle batch", testType: "cycle_aging", batchCode: "B1", sourceLab: "Lab A", equipmentId: "CH-1", operator: "operator", testStartedAt: "2026-01-01T00:00:00Z", testEndedAt: "2026-01-02T00:00:00Z", fileName: "cycle.csv", unitSchema: "time:s,current:A,voltage:V", checksumSha256: "bad" });
   assert.equal(result.ok, false);
   if (!result.ok) assert.ok(result.errors.some((error) => error.includes("SHA-256")));
 });

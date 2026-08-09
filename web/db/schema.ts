@@ -23,15 +23,34 @@ export const cellProducts = sqliteTable("cell_products", {
   uniqueIndex("uq_cell_products_owner_model_revision").on(table.userId, table.model, table.revision),
 ]);
 
+/** A physical test article. Its identity is stable across multiple test packages. */
+export const cellSamples = sqliteTable("cell_samples", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  sampleCode: text("sample_code").notNull(),
+  batchCode: text("batch_code").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_cell_samples_owner_code").on(table.userId, table.sampleCode),
+  index("idx_cell_samples_product").on(table.productId),
+]);
+
 /** Traceable metadata for one uploaded test package; the source file lives in object storage. */
 export const testDatasets = sqliteTable("test_datasets", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   productId: text("product_id").notNull().references(() => cellProducts.id),
+  sampleId: text("sample_id").notNull().references(() => cellSamples.id),
+  schemaVersion: text("schema_version").notNull().default("V0.2"),
   name: text("name").notNull(),
   testType: text("test_type").notNull(),
   batchCode: text("batch_code").notNull(),
   sourceLab: text("source_lab").notNull(),
+  equipmentId: text("equipment_id").notNull(),
+  operator: text("operator").notNull(),
+  testStartedAt: text("test_started_at").notNull(),
+  testEndedAt: text("test_ended_at").notNull(),
   fileName: text("file_name").notNull(),
   storageUri: text("storage_uri"),
   checksumSha256: text("checksum_sha256"),
@@ -42,6 +61,26 @@ export const testDatasets = sqliteTable("test_datasets", {
 }, (table) => [
   index("idx_test_datasets_product_created").on(table.productId, table.createdAt),
   index("idx_test_datasets_user_created").on(table.userId, table.createdAt),
+]);
+
+/** Reproducible mapping/cleaning output derived from immutable source bytes. */
+export const datasetRevisions = sqliteTable("dataset_revisions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  datasetId: text("dataset_id").notNull().references(() => testDatasets.id),
+  revision: text("revision").notNull(),
+  mappingVersion: text("mapping_version").notNull(),
+  cleaningRuleVersion: text("cleaning_rule_version").notNull(),
+  codeRevision: text("code_revision").notNull(),
+  outputUri: text("output_uri"),
+  outputChecksumSha256: text("output_checksum_sha256"),
+  rowCount: integer("row_count"),
+  validationStatus: text("validation_status").notNull().default("pending"),
+  validationReportUri: text("validation_report_uri"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_dataset_revisions_dataset_revision").on(table.datasetId, table.revision),
+  index("idx_dataset_revisions_user_created").on(table.userId, table.createdAt),
 ]);
 
 /** What is being studied. Never mutated in place: an edit produces a new row. */

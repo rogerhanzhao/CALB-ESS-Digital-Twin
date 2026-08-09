@@ -59,6 +59,9 @@ export default function Home() {
   const [datasetType, setDatasetType] = useState("cycle_aging");
   const [batchCode, setBatchCode] = useState("");
   const [sourceLab, setSourceLab] = useState("");
+  const [sampleCode, setSampleCode] = useState("");
+  const [equipmentId, setEquipmentId] = useState("");
+  const [operator, setOperator] = useState("");
 
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
@@ -149,7 +152,8 @@ export default function Home() {
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     const checksumSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
     const rowCount = datasetFile.name.toLowerCase().endsWith(".csv") ? Math.max(0, new TextDecoder().decode(bytes).split(/\r?\n/).filter(Boolean).length - 1) : null;
-    const response = await fetch("/api/test-datasets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productId, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, fileName: datasetFile.name, checksumSha256, rowCount, unitSchema: "待列映射审核" }) });
+    const now = new Date();
+    const response = await fetch("/api/test-datasets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productId, sampleCode, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, equipmentId, operator, testStartedAt: new Date(now.getTime() - 3600000).toISOString(), testEndedAt: now.toISOString(), fileName: datasetFile.name, checksumSha256, rowCount, unitSchema: "待列映射审核" }) });
     const payload = await response.json() as { error?: string; details?: string[] };
     if (!response.ok) { setNotice(payload.details?.join("；") ?? payload.error ?? "登记失败"); return; }
     setNotice("测试数据元数据与 SHA-256 已登记；原始文件等待对象存储接入");
@@ -245,7 +249,7 @@ export default function Home() {
 
           <section className="panel domain-card" id="test-data">
             <div className="panel-head"><div><p className="eyebrow">TEST DATA INTAKE</p><h2>测试数据导入</h2></div><span className="stage-badge waiting">待接入</span></div>
-            <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>当前登记 CSV / XLSX 元数据、行数与 SHA-256；原始文件存储将在对象存储接入后启用</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit">登记数据集</button></div></form>
+            <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><div className="form-row"><label>样品编号<input value={sampleCode} onChange={(event) => setSampleCode(event.target.value)} required /></label><label>设备 / 通道编号<input value={equipmentId} onChange={(event) => setEquipmentId(event.target.value)} required /></label></div><div className="form-row"><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><label>责任操作员<input value={operator} onChange={(event) => setOperator(event.target.value)} required /></label></div><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>当前登记 CSV / XLSX 元数据、行数与 SHA-256；原始文件存储将在对象存储接入后启用</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit">登记数据集</button></div></form>
             <p className="boundary-note">导入数据必须保留来源、批次、测试设备、时间范围和单位；未经审核的数据不能用于发布模型。</p>
           </section>
 

@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { cellProducts, testDatasets } from "../../../db/schema";
+import { cellProducts, cellSamples, testDatasets } from "../../../db/schema";
 import { parseDatasetInput } from "../../../lib/catalog";
 
 function ownerOf(request: Request) { return request.headers.get("oai-authenticated-user-id"); }
@@ -21,7 +21,14 @@ export async function POST(request: Request) {
   if (!parsed.ok) return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
   const product = await getDb().select({ id: cellProducts.id }).from(cellProducts).where(and(eq(cellProducts.id, parsed.value.productId), eq(cellProducts.userId, owner))).limit(1);
   if (!product.length) return Response.json({ error: "Product not found" }, { status: 404 });
-  const dataset = { id: crypto.randomUUID(), userId: owner, ...parsed.value, storageUri: null, status: "registered", createdAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const existingSample = await getDb().select().from(cellSamples).where(and(eq(cellSamples.userId, owner), eq(cellSamples.sampleCode, parsed.value.sampleCode))).limit(1);
+  if (existingSample.length && existingSample[0].productId !== parsed.value.productId) return Response.json({ error: "Sample code already belongs to another product" }, { status: 409 });
+  const sample = existingSample[0] ?? { id: crypto.randomUUID(), userId: owner, productId: parsed.value.productId, sampleCode: parsed.value.sampleCode, batchCode: parsed.value.batchCode, createdAt: now };
+  if (!existingSample.length) await getDb().insert(cellSamples).values(sample);
+  const { sampleCode: _sampleCode, ...input } = parsed.value;
+  void _sampleCode;
+  const dataset = { id: crypto.randomUUID(), userId: owner, sampleId: sample.id, schemaVersion: "V0.2", ...input, storageUri: null, status: "registered", createdAt: now };
   await getDb().insert(testDatasets).values(dataset);
   return Response.json({ dataset }, { status: 201 });
 }

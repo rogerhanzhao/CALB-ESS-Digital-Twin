@@ -14,10 +14,15 @@ export type ProductInput = {
 
 export type DatasetInput = {
   productId: string;
+  sampleCode: string;
   name: string;
   testType: TestType;
   batchCode: string;
   sourceLab: string;
+  equipmentId: string;
+  operator: string;
+  testStartedAt: string;
+  testEndedAt: string;
   fileName: string;
   checksumSha256: string | null;
   rowCount: number | null;
@@ -60,9 +65,17 @@ export function parseDatasetInput(payload: unknown): Validation<DatasetInput> {
   if (!body) return { ok: false, errors: ["request body must be a JSON object"] };
   const errors: string[] = [];
   const productId = requiredText(body, "productId", errors, 80);
+  const sampleCode = requiredText(body, "sampleCode", errors, 80);
   const name = requiredText(body, "name", errors, 120);
   const batchCode = requiredText(body, "batchCode", errors, 80);
   const sourceLab = requiredText(body, "sourceLab", errors, 120);
+  const equipmentId = requiredText(body, "equipmentId", errors, 120);
+  const operator = requiredText(body, "operator", errors, 120);
+  const testStartedAt = requiredText(body, "testStartedAt", errors, 50);
+  const testEndedAt = requiredText(body, "testEndedAt", errors, 50);
+  const started = Date.parse(testStartedAt);
+  const ended = Date.parse(testEndedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(ended) || ended <= started) errors.push("test period must contain valid ISO timestamps with end after start");
   const fileName = requiredText(body, "fileName", errors, 240);
   const unitSchema = requiredText(body, "unitSchema", errors, 2000);
   const testType = body.testType;
@@ -71,5 +84,5 @@ export function parseDatasetInput(payload: unknown): Validation<DatasetInput> {
   if (checksum !== null && checksum !== undefined && (typeof checksum !== "string" || !/^[a-f0-9]{64}$/i.test(checksum))) errors.push("checksumSha256 must be a 64-character SHA-256 hex digest");
   const rows = body.rowCount;
   if (rows !== null && rows !== undefined && (!Number.isInteger(rows) || (rows as number) < 0)) errors.push("rowCount must be a non-negative integer");
-  return errors.length ? { ok: false, errors } : { ok: true, value: { productId, name, batchCode, sourceLab, fileName, unitSchema, testType: testType as TestType, checksumSha256: typeof checksum === "string" ? checksum.toLowerCase() : null, rowCount: typeof rows === "number" ? rows : null } };
+  return errors.length ? { ok: false, errors } : { ok: true, value: { productId, sampleCode, name, batchCode, sourceLab, equipmentId, operator, testStartedAt, testEndedAt, fileName, unitSchema, testType: testType as TestType, checksumSha256: typeof checksum === "string" ? checksum.toLowerCase() : null, rowCount: typeof rows === "number" ? rows : null } };
 }
