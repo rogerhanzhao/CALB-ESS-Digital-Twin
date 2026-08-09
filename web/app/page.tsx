@@ -18,6 +18,7 @@ type Simulation = {
 };
 
 type AuthState = "unknown" | "anonymous" | "authenticated";
+type SectionId = "overview" | "products" | "test-data" | "models" | "runs" | "results" | "warranty";
 
 /**
  * Local preview rows. These exist so the layout is inspectable without a database
@@ -49,6 +50,20 @@ export default function Home() {
   const [cycles, setCycles] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("本地预览数据");
+  const [activeSection, setActiveSection] = useState<SectionId>("overview");
+  const [productId, setProductId] = useState("");
+  const [productModel, setProductModel] = useState("");
+  const [capacityAh, setCapacityAh] = useState(314);
+  const [revision, setRevision] = useState("R1");
+  const [datasetFile, setDatasetFile] = useState<File | null>(null);
+  const [datasetType, setDatasetType] = useState("cycle_aging");
+  const [batchCode, setBatchCode] = useState("");
+  const [sourceLab, setSourceLab] = useState("");
+
+  const navigateTo = (section: SectionId) => {
+    setActiveSection(section);
+    document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     let active = true;
@@ -118,15 +133,41 @@ export default function Home() {
     }
   }
 
+  async function saveProduct(event: FormEvent) {
+    event.preventDefault();
+    const response = await fetch("/api/products", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ manufacturer: "CALB", model: productModel, chemistry: "LFP", nominalCapacityAh: capacityAh, nominalVoltageV: 3.2, revision }) });
+    const payload = await response.json() as { product?: { id: string }; error?: string; details?: string[] };
+    if (!response.ok) { setNotice(response.status === 401 ? "请先登录后保存产品档案" : payload.details?.join("；") ?? payload.error ?? "保存失败"); return; }
+    setProductId(payload.product?.id ?? "");
+    setNotice("产品草稿已保存，可继续登记测试数据");
+  }
+
+  async function registerDataset(event: FormEvent) {
+    event.preventDefault();
+    if (!datasetFile || !productId) { setNotice("请先保存产品档案并选择测试文件"); return; }
+    const bytes = await datasetFile.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const checksumSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const rowCount = datasetFile.name.toLowerCase().endsWith(".csv") ? Math.max(0, new TextDecoder().decode(bytes).split(/\r?\n/).filter(Boolean).length - 1) : null;
+    const response = await fetch("/api/test-datasets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productId, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, fileName: datasetFile.name, checksumSha256, rowCount, unitSchema: "待列映射审核" }) });
+    const payload = await response.json() as { error?: string; details?: string[] };
+    if (!response.ok) { setNotice(payload.details?.join("；") ?? payload.error ?? "登记失败"); return; }
+    setNotice("测试数据元数据与 SHA-256 已登记；原始文件等待对象存储接入");
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><i /><i /><i /></span><div><strong>ESS Digital Twin</strong><small>CALB · ENGINEERING PLATFORM</small></div></div>
         <nav aria-label="主导航">
-          <a className="nav-item active" href="#overview"><span>⌁</span>仿真工作台</a>
-          <a className="nav-item" href="#runs"><span>◫</span>任务与结果</a>
-          <a className="nav-item" href="#models"><span>◇</span>电芯模型库</a>
-          <a className="nav-item" href="#warranty"><span>◎</span>质保分析</a>
+          {([
+            ["overview", "⌁", "项目总览"], ["products", "▣", "产品与方案"],
+            ["test-data", "⇧", "测试数据"], ["models", "◇", "模型与标定"],
+            ["runs", "◫", "仿真任务"], ["results", "⌁", "结果与版本"],
+            ["warranty", "◎", "审核与质保"],
+          ] as const).map(([id, icon, label]) => (
+            <a key={id} href={`#${id}`} aria-current={activeSection === id ? "page" : undefined} className={`nav-item ${activeSection === id ? "active" : ""}`} onClick={() => setActiveSection(id)}><span>{icon}</span>{label}</a>
+          ))}
         </nav>
         <div className="sidebar-foot"><span className="live-dot" />控制面在线<small>计算面尚未接入</small></div>
       </aside>
@@ -150,6 +191,12 @@ export default function Home() {
           <article><span>模型版本</span><strong>{current?.modelVersion ?? EM_DASH}</strong><small>计算内核尚未接入</small></article>
           <article><span>计算节点负载</span><strong>{EM_DASH}</strong><small>计算面接入后可用</small></article>
         </div>
+
+        <section className="workflow-strip" aria-label="标准仿真流程">
+          {["建立产品档案", "导入测试数据", "标定模型", "配置标准工况", "执行仿真", "审核并发布"].map((step, index) => (
+            <div className={index === 0 ? "ready" : "pending"} key={step}><i>{index + 1}</i><span>{step}</span><small>{index === 0 ? "可开始" : "等待上游"}</small></div>
+          ))}
+        </section>
 
         <div className="primary-grid">
           <section className="panel builder">
@@ -187,6 +234,37 @@ export default function Home() {
           <div className="panel-head"><div><p className="eyebrow">PERSISTENT JOB QUEUE</p><h2>最近任务</h2></div><button className="text-button">查看全部 →</button></div>
           <div className="table"><div className="table-row table-head"><span>任务</span><span>工况</span><span>进度</span><span>状态</span><span>期末 SOH</span></div>{runs.slice(0, 5).map((run) => <button className={`table-row ${selected === run.id ? "selected" : ""}`} key={run.id} onClick={() => setSelected(run.id)}><span><b>{run.name}</b><small>{run.id}</small></span><span>{run.horizonYears} 年 · {run.cyclesPerDay} 循环/日</span><span><progress value={run.progress} max="100" /> {run.progress}%</span><span><i className={`mini-dot ${run.status}`} />{statusLabel[run.status]}{run.demo && <em className="demo-chip">演示</em>}</span><span>{run.endSoh != null ? `${run.endSoh}%` : EM_DASH}</span></button>)}</div>
         </section>
+
+        <div className="domain-grid">
+          <section className="panel domain-card" id="products">
+            <div className="panel-head"><div><p className="eyebrow">PRODUCT REGISTRY</p><h2>产品与方案档案</h2></div><span className="stage-badge demo">示例草稿</span></div>
+            <form className="compact-form" onSubmit={saveProduct}><label>电芯型号<input value={productModel} onChange={(event) => setProductModel(event.target.value)} placeholder="输入正式型号" required /></label><label>额定容量 Ah<input type="number" min="1" max="2000" value={capacityAh} onChange={(event) => setCapacityAh(Number(event.target.value))} required /></label><label>数据修订<input value={revision} onChange={(event) => setRevision(event.target.value)} required /></label><button className="secondary-button">保存产品草稿</button></form>
+            <div className="record-summary"><div><span>当前工作产品</span><strong>{productId ? productModel : "尚未保存"}</strong></div><div><span>参数集</span><strong>尚未发布</strong></div><div><span>数据成熟度</span><strong>{productId ? "L0 · 已建档" : "L0 · 待建档"}</strong></div></div>
+            <div className="action-row"><span className="helper">记录为草稿，不代表 CALB 正式发布产品参数。</span><button className="text-button" onClick={() => navigateTo("test-data")}>进入数据导入 →</button></div>
+          </section>
+
+          <section className="panel domain-card" id="test-data">
+            <div className="panel-head"><div><p className="eyebrow">TEST DATA INTAKE</p><h2>测试数据导入</h2></div><span className="stage-badge waiting">待接入</span></div>
+            <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>当前登记 CSV / XLSX 元数据、行数与 SHA-256；原始文件存储将在对象存储接入后启用</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit">登记数据集</button></div></form>
+            <p className="boundary-note">导入数据必须保留来源、批次、测试设备、时间范围和单位；未经审核的数据不能用于发布模型。</p>
+          </section>
+
+          <section className="panel domain-card" id="models">
+            <div className="panel-head"><div><p className="eyebrow">MODEL CALIBRATION</p><h2>模型与标定</h2></div><span className="stage-badge waiting">等待数据</span></div>
+            <div className="model-lines"><div><span>PyBaMM SPMe</span><b>参考运行器已建立</b></div><div><span>SOH 半经验模型</span><b>契约已定义</b></div><div><span>有效性边界</span><b>待测试数据标定</b></div></div>
+            <button className="secondary-button" onClick={() => setNotice("需要先导入并审核测试数据")}>创建标定任务</button>
+          </section>
+
+          <section className="panel domain-card" id="results">
+            <div className="panel-head"><div><p className="eyebrow">RESULT LIBRARY</p><h2>结果与版本</h2></div><span className="stage-badge demo">仅演示</span></div>
+            <div className="empty-state"><strong>尚无可发布的仿真结果</strong><span>正式结果将绑定产品、数据版本、模型版本、代码修订和标准工况，历史版本不会被覆盖。</span></div>
+          </section>
+
+          <section className="panel domain-card full" id="warranty">
+            <div className="panel-head"><div><p className="eyebrow">REVIEW &amp; WARRANTY</p><h2>审核与质保分析</h2></div><span className="stage-badge waiting">未开放</span></div>
+            <div className="review-flow"><span>技术校核<small>模型边界与误差</small></span><b>→</b><span>业务审核<small>标准工况与口径</small></span><b>→</b><span>版本发布<small>生成不可变结果</small></span><b>→</b><span>质保分析<small>阈值与余量</small></span></div>
+          </section>
+        </div>
         <footer className="project-footer"><span>CALB ESS Digital Twin · V0.1</span><span>Concept &amp; System Design · Alex.Z</span><span>© 2026 Alex.Z</span></footer>
       </section>
     </main>

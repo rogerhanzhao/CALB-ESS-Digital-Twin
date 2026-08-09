@@ -6,6 +6,44 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-or
  * `simulations` table.
  */
 
+/** Product master data. Released records are immutable; revisions create a new row. */
+export const cellProducts = sqliteTable("cell_products", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  manufacturer: text("manufacturer").notNull(),
+  model: text("model").notNull(),
+  chemistry: text("chemistry").notNull().default("LFP"),
+  nominalCapacityAh: real("nominal_capacity_ah").notNull(),
+  nominalVoltageV: real("nominal_voltage_v").notNull(),
+  revision: text("revision").notNull(),
+  status: text("status").notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_cell_products_user_created").on(table.userId, table.createdAt),
+  uniqueIndex("uq_cell_products_owner_model_revision").on(table.userId, table.model, table.revision),
+]);
+
+/** Traceable metadata for one uploaded test package; the source file lives in object storage. */
+export const testDatasets = sqliteTable("test_datasets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  name: text("name").notNull(),
+  testType: text("test_type").notNull(),
+  batchCode: text("batch_code").notNull(),
+  sourceLab: text("source_lab").notNull(),
+  fileName: text("file_name").notNull(),
+  storageUri: text("storage_uri"),
+  checksumSha256: text("checksum_sha256"),
+  rowCount: integer("row_count"),
+  unitSchema: text("unit_schema").notNull(),
+  status: text("status").notNull().default("registered"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_test_datasets_product_created").on(table.productId, table.createdAt),
+  index("idx_test_datasets_user_created").on(table.userId, table.createdAt),
+]);
+
 /** What is being studied. Never mutated in place: an edit produces a new row. */
 export const scenarios = sqliteTable("scenarios", {
   id: text("id").primaryKey(),

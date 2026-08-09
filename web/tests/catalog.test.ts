@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { parseDatasetInput, parseProductInput } from "../lib/catalog.ts";
+
+test("product validation accepts a bounded LFP cell record", () => {
+  const result = parseProductInput({ manufacturer: "CALB", model: "sample", chemistry: "LFP", nominalCapacityAh: 314, nominalVoltageV: 3.2, revision: "R1" });
+  assert.equal(result.ok, true);
+});
+
+test("product validation rejects invented or invalid physical values", () => {
+  const result = parseProductInput({ manufacturer: "", model: "sample", chemistry: "NMC", nominalCapacityAh: -1, nominalVoltageV: 30, revision: "R1" });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.ok(result.errors.length >= 4);
+});
+
+test("dataset validation requires provenance and validates checksums", () => {
+  const result = parseDatasetInput({ productId: "p1", name: "cycle batch", testType: "cycle_aging", batchCode: "B1", sourceLab: "Lab A", fileName: "cycle.csv", unitSchema: "time:s,current:A,voltage:V", checksumSha256: "bad" });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.ok(result.errors.some((error) => error.includes("SHA-256")));
+});
