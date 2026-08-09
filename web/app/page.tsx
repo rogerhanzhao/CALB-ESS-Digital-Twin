@@ -18,6 +18,7 @@ type Simulation = {
 };
 
 type AuthState = "unknown" | "anonymous" | "authenticated";
+type SectionId = "overview" | "products" | "test-data" | "models" | "runs" | "results" | "warranty";
 
 /**
  * Local preview rows. These exist so the layout is inspectable without a database
@@ -49,6 +50,12 @@ export default function Home() {
   const [cycles, setCycles] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("本地预览数据");
+  const [activeSection, setActiveSection] = useState<SectionId>("overview");
+
+  const navigateTo = (section: SectionId) => {
+    setActiveSection(section);
+    document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     let active = true;
@@ -123,10 +130,13 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><i /><i /><i /></span><div><strong>ESS Digital Twin</strong><small>CALB · ENGINEERING PLATFORM</small></div></div>
         <nav aria-label="主导航">
-          <a className="nav-item active" href="#overview"><span>⌁</span>仿真工作台</a>
-          <a className="nav-item" href="#runs"><span>◫</span>任务与结果</a>
-          <a className="nav-item" href="#models"><span>◇</span>电芯模型库</a>
-          <a className="nav-item" href="#warranty"><span>◎</span>质保分析</a>
+          <button className={`nav-item ${activeSection === "overview" ? "active" : ""}`} onClick={() => navigateTo("overview")}><span>⌁</span>项目总览</button>
+          <button className={`nav-item ${activeSection === "products" ? "active" : ""}`} onClick={() => navigateTo("products")}><span>▣</span>产品与方案</button>
+          <button className={`nav-item ${activeSection === "test-data" ? "active" : ""}`} onClick={() => navigateTo("test-data")}><span>⇧</span>测试数据</button>
+          <button className={`nav-item ${activeSection === "models" ? "active" : ""}`} onClick={() => navigateTo("models")}><span>◇</span>模型与标定</button>
+          <button className={`nav-item ${activeSection === "runs" ? "active" : ""}`} onClick={() => navigateTo("runs")}><span>◫</span>仿真任务</button>
+          <button className={`nav-item ${activeSection === "results" ? "active" : ""}`} onClick={() => navigateTo("results")}><span>⌁</span>结果与版本</button>
+          <button className={`nav-item ${activeSection === "warranty" ? "active" : ""}`} onClick={() => navigateTo("warranty")}><span>◎</span>审核与质保</button>
         </nav>
         <div className="sidebar-foot"><span className="live-dot" />控制面在线<small>计算面尚未接入</small></div>
       </aside>
@@ -150,6 +160,12 @@ export default function Home() {
           <article><span>模型版本</span><strong>{current?.modelVersion ?? EM_DASH}</strong><small>计算内核尚未接入</small></article>
           <article><span>计算节点负载</span><strong>{EM_DASH}</strong><small>计算面接入后可用</small></article>
         </div>
+
+        <section className="workflow-strip" aria-label="标准仿真流程">
+          {["建立产品档案", "导入测试数据", "标定模型", "配置标准工况", "执行仿真", "审核并发布"].map((step, index) => (
+            <div className={index === 0 ? "ready" : "pending"} key={step}><i>{index + 1}</i><span>{step}</span><small>{index === 0 ? "可开始" : "等待上游"}</small></div>
+          ))}
+        </section>
 
         <div className="primary-grid">
           <section className="panel builder">
@@ -187,6 +203,36 @@ export default function Home() {
           <div className="panel-head"><div><p className="eyebrow">PERSISTENT JOB QUEUE</p><h2>最近任务</h2></div><button className="text-button">查看全部 →</button></div>
           <div className="table"><div className="table-row table-head"><span>任务</span><span>工况</span><span>进度</span><span>状态</span><span>期末 SOH</span></div>{runs.slice(0, 5).map((run) => <button className={`table-row ${selected === run.id ? "selected" : ""}`} key={run.id} onClick={() => setSelected(run.id)}><span><b>{run.name}</b><small>{run.id}</small></span><span>{run.horizonYears} 年 · {run.cyclesPerDay} 循环/日</span><span><progress value={run.progress} max="100" /> {run.progress}%</span><span><i className={`mini-dot ${run.status}`} />{statusLabel[run.status]}{run.demo && <em className="demo-chip">演示</em>}</span><span>{run.endSoh != null ? `${run.endSoh}%` : EM_DASH}</span></button>)}</div>
         </section>
+
+        <div className="domain-grid">
+          <section className="panel domain-card" id="products">
+            <div className="panel-head"><div><p className="eyebrow">PRODUCT REGISTRY</p><h2>产品与方案档案</h2></div><span className="stage-badge ready">可录入</span></div>
+            <div className="record-summary"><div><span>电芯型号</span><strong>CALB 314 Ah LFP</strong></div><div><span>参数集</span><strong>尚未发布</strong></div><div><span>数据成熟度</span><strong>L0 · 待导入</strong></div></div>
+            <div className="action-row"><button className="secondary-button" onClick={() => setNotice("产品档案编辑将在本阶段接入数据库")}>新建产品档案</button><button className="text-button" onClick={() => navigateTo("test-data")}>进入数据导入 →</button></div>
+          </section>
+
+          <section className="panel domain-card" id="test-data">
+            <div className="panel-head"><div><p className="eyebrow">TEST DATA INTAKE</p><h2>测试数据导入</h2></div><span className="stage-badge waiting">待接入</span></div>
+            <div className="drop-zone"><strong>上传测试数据包</strong><span>计划支持 CSV / XLSX；循环、日历、HPPC 与温度工况分别校验</span><button onClick={() => setNotice("数据导入器正在开发，当前不会上传文件")}>选择文件</button></div>
+            <p className="boundary-note">导入数据必须保留来源、批次、测试设备、时间范围和单位；未经审核的数据不能用于发布模型。</p>
+          </section>
+
+          <section className="panel domain-card" id="models">
+            <div className="panel-head"><div><p className="eyebrow">MODEL CALIBRATION</p><h2>模型与标定</h2></div><span className="stage-badge waiting">等待数据</span></div>
+            <div className="model-lines"><div><span>PyBaMM SPMe</span><b>参考运行器已建立</b></div><div><span>SOH 半经验模型</span><b>契约已定义</b></div><div><span>有效性边界</span><b>待测试数据标定</b></div></div>
+            <button className="secondary-button" onClick={() => setNotice("需要先导入并审核测试数据")}>创建标定任务</button>
+          </section>
+
+          <section className="panel domain-card" id="results">
+            <div className="panel-head"><div><p className="eyebrow">RESULT LIBRARY</p><h2>结果与版本</h2></div><span className="stage-badge demo">仅演示</span></div>
+            <div className="empty-state"><strong>尚无可发布的仿真结果</strong><span>正式结果将绑定产品、数据版本、模型版本、代码修订和标准工况，历史版本不会被覆盖。</span></div>
+          </section>
+
+          <section className="panel domain-card full" id="warranty">
+            <div className="panel-head"><div><p className="eyebrow">REVIEW &amp; WARRANTY</p><h2>审核与质保分析</h2></div><span className="stage-badge waiting">未开放</span></div>
+            <div className="review-flow"><span>技术校核<small>模型边界与误差</small></span><b>→</b><span>业务审核<small>标准工况与口径</small></span><b>→</b><span>版本发布<small>生成不可变结果</small></span><b>→</b><span>质保分析<small>阈值与余量</small></span></div>
+          </section>
+        </div>
         <footer className="project-footer"><span>CALB ESS Digital Twin · V0.1</span><span>Concept &amp; System Design · Alex.Z</span><span>© 2026 Alex.Z</span></footer>
       </section>
     </main>

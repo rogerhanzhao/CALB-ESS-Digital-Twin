@@ -65,9 +65,9 @@ def export(output_dir: Path) -> None:
     schemas = {"job.schema.json": JobPayload, "result.schema.json": RunResult}
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"
-        (output_dir / filename).write_text(content, encoding="utf-8")
+        (output_dir / filename).write_text(content, encoding="utf-8", newline="\n")
     (output_dir / "contracts.ts").write_text(
-        _typescript([JobPayload, RunResult]), encoding="utf-8"
+        _typescript([JobPayload, RunResult]), encoding="utf-8", newline="\n"
     )
 
 
