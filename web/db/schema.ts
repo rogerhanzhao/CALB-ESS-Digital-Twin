@@ -10,6 +10,7 @@ import { check, index, integer, real, sqliteTable, text, uniqueIndex } from "dri
 export const PRODUCT_STATUSES = ["draft", "under_review", "released", "retired"] as const;
 export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const;
 export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
+export const SCENARIO_STATUSES = ["draft", "released", "superseded"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -91,6 +92,44 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
 ]);
 
 /** What is being studied. Never mutated in place: an edit produces a new row. */
+/**
+ * A named, versioned duty cycle that results are meant to be compared across.
+ *
+ * `code` is opaque and `version` is monotonic within it. The parameters live in columns
+ * and are deliberately not encoded into the code: a label like `ESS-STD-25C-1CPD-90DOD`
+ * stops being true the moment a later version changes the SOC window, and a name that
+ * lies is worse than one that says nothing.
+ *
+ * Rows are append-only. There is no update path, and `uq_standard_scenarios_owner_code_version`
+ * makes re-registering an existing version fail rather than silently redefine what an
+ * already-approved result was run against.
+ *
+ * Ranges match `contracts/models.py::ScenarioInput`, which is the single source of truth
+ * for what the compute plane will accept. See `web/lib/scenarios.ts`.
+ */
+export const standardScenarios = sqliteTable("standard_scenarios", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  /** Stable identifier for the scenario family, e.g. `ESS-STD-BASELINE`. */
+  code: text("code").notNull(),
+  /** Monotonic within `code`. A changed definition is a new version, never an edit. */
+  version: integer("version").notNull(),
+  name: text("name").notNull(),
+  ambientTemperatureC: real("ambient_temperature_c").notNull(),
+  cyclesPerDay: real("cycles_per_day").notNull(),
+  depthOfDischarge: real("depth_of_discharge").notNull(),
+  /** Operating SOC window. Stored explicitly because DoD alone does not locate it. */
+  socWindowMin: real("soc_window_min").notNull(),
+  socWindowMax: real("soc_window_max").notNull(),
+  horizonYears: integer("horizon_years").notNull(),
+  status: text("status", { enum: SCENARIO_STATUSES }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_standard_scenarios_owner_code_version").on(table.userId, table.code, table.version),
+  index("idx_standard_scenarios_user_created").on(table.userId, table.createdAt),
+  check("ck_standard_scenarios_status", sql`${table.status} in ('draft', 'released', 'superseded')`),
+]);
+
 export const scenarios = sqliteTable("scenarios", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -98,6 +137,14 @@ export const scenarios = sqliteTable("scenarios", {
   chemistry: text("chemistry").notNull().default("LFP"),
   /** Which approved cell parameter set the study assumes. Null until `cell_database` publishes one. */
   cellParamSetVersion: text("cell_param_set_version"),
+  /**
+   * The standard scenario this study instantiates, when it instantiates one.
+   *
+   * Null for ad-hoc exploratory studies, which stay allowed. Only the row id is stored:
+   * the version belongs to the referenced row, and duplicating it here would let the two
+   * disagree — the same failure mode that put `batch_code` on one table only (#12 F2).
+   */
+  standardScenarioId: text("standard_scenario_id").references(() => standardScenarios.id),
   horizonYears: integer("horizon_years").notNull(),
   cyclesPerDay: real("cycles_per_day").notNull(),
   depthOfDischarge: real("depth_of_discharge").notNull().default(0.9),
@@ -119,7 +166,9 @@ export const runs = sqliteTable("runs", {
   idempotencyKey: text("idempotency_key"),
   /**
    * Permanent provenance marker, not a status. A row produced by the demonstrator
-   * progress engine stays `demo` for life and is never promoted to `pybamm`.
+   * progress engine stays `demo` for life and is never promoted to `pybamm-spme`.
+   * The vocabulary is `contracts/models.py`; `web/lib/runs.ts` derives its type from the
+   * generated contract so the two cannot drift apart again.
    */
   engine: text("engine").notNull().default("demo"),
   modelVersion: text("model_version"),
