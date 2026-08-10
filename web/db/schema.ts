@@ -1,10 +1,94 @@
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Persistence contract for the control plane. See `docs/data-model.md` for the
  * rationale, the write-ownership rules, and the migration from the V0.1 single
  * `simulations` table.
  */
+
+export const PRODUCT_STATUSES = ["draft", "under_review", "released", "retired"] as const;
+export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const;
+export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
+
+/** Product master data. Released records are immutable; revisions create a new row. */
+export const cellProducts = sqliteTable("cell_products", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  manufacturer: text("manufacturer").notNull(),
+  model: text("model").notNull(),
+  chemistry: text("chemistry").notNull().default("LFP"),
+  nominalCapacityAh: real("nominal_capacity_ah").notNull(),
+  nominalVoltageV: real("nominal_voltage_v").notNull(),
+  revision: text("revision").notNull(),
+  status: text("status", { enum: PRODUCT_STATUSES }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_cell_products_user_created").on(table.userId, table.createdAt),
+  uniqueIndex("uq_cell_products_owner_make_model_revision").on(table.userId, table.manufacturer, table.model, table.revision),
+  check("ck_cell_products_status", sql`${table.status} in ('draft', 'under_review', 'released', 'retired')`),
+]);
+
+/** A physical test article. Its identity is stable across multiple test packages. */
+export const cellSamples = sqliteTable("cell_samples", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  sampleCode: text("sample_code").notNull(),
+  batchCode: text("batch_code").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_cell_samples_owner_code").on(table.userId, table.sampleCode),
+  index("idx_cell_samples_product").on(table.productId),
+]);
+
+/** Traceable metadata for one uploaded test package; the source file lives in object storage. */
+export const testDatasets = sqliteTable("test_datasets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  sampleId: text("sample_id").notNull().references(() => cellSamples.id),
+  schemaVersion: text("schema_version").notNull().default("V0.2"),
+  name: text("name").notNull(),
+  testType: text("test_type").notNull(),
+  sourceLab: text("source_lab").notNull(),
+  equipmentId: text("equipment_id").notNull(),
+  operator: text("operator").notNull(),
+  testStartedAt: text("test_started_at").notNull(),
+  testEndedAt: text("test_ended_at").notNull(),
+  fileName: text("file_name").notNull(),
+  storageUri: text("storage_uri"),
+  checksumSha256: text("checksum_sha256"),
+  rowCount: integer("row_count"),
+  unitSchema: text("unit_schema").notNull(),
+  status: text("status", { enum: DATASET_STATUSES }).notNull().default("registered"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_test_datasets_product_created").on(table.productId, table.createdAt),
+  index("idx_test_datasets_user_created").on(table.userId, table.createdAt),
+  check("ck_test_datasets_status", sql`${table.status} in ('registered', 'validated', 'rejected')`),
+]);
+
+/** Reproducible mapping/cleaning output derived from immutable source bytes. */
+export const datasetRevisions = sqliteTable("dataset_revisions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  datasetId: text("dataset_id").notNull().references(() => testDatasets.id),
+  revision: text("revision").notNull(),
+  mappingVersion: text("mapping_version").notNull(),
+  cleaningRuleVersion: text("cleaning_rule_version").notNull(),
+  codeRevision: text("code_revision").notNull(),
+  outputUri: text("output_uri"),
+  outputChecksumSha256: text("output_checksum_sha256"),
+  rowCount: integer("row_count"),
+  validationStatus: text("validation_status", { enum: VALIDATION_STATUSES }).notNull().default("pending"),
+  validationReportUri: text("validation_report_uri"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_dataset_revisions_dataset_revision").on(table.datasetId, table.revision),
+  index("idx_dataset_revisions_user_created").on(table.userId, table.createdAt),
+  check("ck_dataset_revisions_validation_status", sql`${table.validationStatus} in ('pending', 'pass', 'warning', 'reject')`),
+]);
 
 /** What is being studied. Never mutated in place: an edit produces a new row. */
 export const scenarios = sqliteTable("scenarios", {
