@@ -1,0 +1,83 @@
+import { env } from "cloudflare:workers";
+import { parseWorkerCompletion, workerRequestIsAuthorized } from "../../../../../../lib/worker-api";
+
+type Context = { params: Promise<{ id: string }> };
+
+export async function POST(request: Request, { params }: Context) {
+  if (!(await workerRequestIsAuthorized(request, env.WORKER_API_TOKEN))) {
+    return Response.json({ error: "worker authentication failed" }, { status: 401 });
+  }
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "request body must be valid JSON" }, { status: 400 });
+  }
+  const { id } = await params;
+  const completion = parseWorkerCompletion(body, id);
+  if (!completion) return Response.json({ error: "invalid worker completion" }, { status: 400 });
+
+  const owned = await env.DB.prepare(
+    "SELECT 1 AS owned FROM runs WHERE id = ? AND worker_id = ? AND status = 'running'",
+  ).bind(id, completion.workerId).first<{ owned: number }>();
+  if (!owned) {
+    return Response.json({ error: "worker does not own this running job" }, { status: 409 });
+  }
+
+  for (const artifact of completion.artifacts) {
+    const stored = await env.STUDY_ARTIFACTS.head(artifact.objectKey);
+    if (
+      !stored ||
+      stored.size !== artifact.sizeBytes ||
+      stored.customMetadata?.sha256 !== artifact.checksumSha256 ||
+      stored.customMetadata?.runId !== id ||
+      stored.customMetadata?.kind !== artifact.kind
+    ) {
+      return Response.json({ error: `stored artifact failed verification: ${artifact.kind}` }, { status: 409 });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const statements = completion.artifacts.map((artifact) =>
+    env.DB.prepare(
+      `INSERT INTO run_artifacts(id, run_id, kind, uri, content_type, size_bytes, checksum, created_at)
+       SELECT ?, id, ?, ?, ?, ?, ?, ? FROM runs
+        WHERE id = ? AND worker_id = ? AND status = 'running'`,
+    ).bind(
+      crypto.randomUUID(),
+      artifact.kind,
+      `r2://STUDY_ARTIFACTS/${artifact.objectKey}`,
+      artifact.contentType,
+      artifact.sizeBytes,
+      artifact.checksumSha256,
+      now,
+      id,
+      completion.workerId,
+    ),
+  );
+  statements.push(
+    env.DB.prepare(
+      `UPDATE runs
+          SET status = 'completed', progress = 100, end_soh = ?,
+              within_validity_envelope = ?, model_version = ?, code_revision = ?,
+              lease_expires_at = NULL, heartbeat_at = ?, error = NULL, updated_at = ?
+        WHERE id = ? AND worker_id = ? AND status = 'running'`,
+    ).bind(
+      completion.result.end_soh,
+      completion.result.within_validity_envelope === null
+        ? null
+        : Number(completion.result.within_validity_envelope),
+      completion.result.model_version,
+      completion.result.code_revision,
+      now,
+      now,
+      id,
+      completion.workerId,
+    ),
+  );
+  const results = await env.DB.batch(statements);
+  if (results.at(-1)?.meta.changes !== 1) {
+    return Response.json({ error: "worker lost the job before completion" }, { status: 409 });
+  }
+  return Response.json({ status: "completed", artifactCount: completion.artifacts.length });
+}

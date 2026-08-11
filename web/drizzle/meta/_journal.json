@@ -57,6 +57,13 @@
       "when": 1786436620862,
       "tag": "0007_sloppy_tarot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786464933227,
+      "tag": "0008_sloppy_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

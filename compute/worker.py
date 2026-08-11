@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import socket
 import time
 from collections.abc import Iterator
@@ -21,7 +22,14 @@ from calb_ess_digital_twin.standard_study import (
 from calb_ess_digital_twin.study_comparison import StudyVersionEvidence
 from contracts.models import JobPayload, RunResult, Uncertainty
 
+from .remote_store import RemoteJobStore, RemoteTransportError
 from .store import ArtifactRegistration, JobStore
+
+WorkerStore = JobStore | RemoteJobStore
+
+
+class LeaseLostError(RuntimeError):
+    """The worker can no longer prove it owns the job and must not publish a result."""
 
 
 @dataclass(frozen=True)
@@ -113,7 +121,7 @@ def execute_job_with_artifacts(payload: JobPayload, artifact_root: Path) -> Exec
 
 @contextmanager
 def keep_lease_alive(
-    store: JobStore,
+    store: WorkerStore,
     job_id: str,
     worker_id: str,
     lease_seconds: int,
@@ -125,7 +133,12 @@ def keep_lease_alive(
 
     def renew() -> None:
         while not stop.wait(heartbeat_interval):
-            if not store.heartbeat(job_id, worker_id, lease_seconds):
+            try:
+                renewed = store.heartbeat(job_id, worker_id, lease_seconds)
+            except Exception:  # noqa: BLE001 - any transport failure makes ownership uncertain
+                lost.set()
+                return
+            if not renewed:
                 lost.set()
                 return
 
@@ -139,7 +152,7 @@ def keep_lease_alive(
 
 
 def run_once(
-    store: JobStore,
+    store: WorkerStore,
     worker_id: str,
     lease_seconds: int = 60,
     heartbeat_interval: float | None = None,
@@ -153,22 +166,33 @@ def run_once(
         payload = JobPayload.model_validate_json(row["payload"])
         interval = heartbeat_interval or max(lease_seconds / 3, 1)
         with keep_lease_alive(store, job_id, worker_id, lease_seconds, interval) as lease_lost:
-            outcome = execute_job_with_artifacts(
-                payload, artifact_root or store.path.parent / "artifacts"
-            )
+            if artifact_root is not None:
+                output_root = artifact_root
+            elif isinstance(store, RemoteJobStore):
+                output_root = store.local_artifact_root
+            else:
+                output_root = store.path.parent / "artifacts"
+            outcome = execute_job_with_artifacts(payload, output_root)
         if lease_lost.is_set():
-            raise RuntimeError("worker lost its lease during execution")
+            raise LeaseLostError("worker lost its lease during execution")
         if not store.complete(
             job_id,
             worker_id,
             outcome.result.model_dump(mode="json"),
             outcome.artifacts,
         ):
-            raise RuntimeError("worker lost its lease before completion")
+            raise LeaseLostError("worker lost its lease before completion")
+    except (LeaseLostError, RemoteTransportError):
+        # Do not turn uncertain ownership or a temporary control-plane outage into a model
+        # failure. The lease expires and an owner can safely reuse the immutable bundle.
+        return True
     # A worker boundary must convert every job failure into durable state so the
     # process survives malformed payloads and numerical-engine exceptions.
     except Exception as exc:  # noqa: BLE001
-        recorded = store.fail(job_id, worker_id, str(exc))
+        try:
+            recorded = store.fail(job_id, worker_id, str(exc))
+        except RemoteTransportError:
+            return True
         if not recorded:
             # A new owner may already be processing an expired lease. Do not overwrite it.
             return True
@@ -181,9 +205,19 @@ def main() -> None:
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
     parser.add_argument("--artifact-root", type=Path)
+    parser.add_argument("--remote-base-url")
     args = parser.parse_args()
-    store = JobStore(args.db)
-    worker_id = socket.gethostname()
+    if args.remote_base_url:
+        token = os.environ.get("CALB_ESS_WORKER_API_TOKEN", "")
+        if not token:
+            parser.error("CALB_ESS_WORKER_API_TOKEN is required with --remote-base-url")
+        remote_artifact_root = args.artifact_root or Path("data/interim/remote-artifacts")
+        store: WorkerStore = RemoteJobStore(
+            args.remote_base_url, token, remote_artifact_root
+        )
+    else:
+        store = JobStore(args.db)
+    worker_id = f"{socket.gethostname()}-{os.getpid()}"
     while True:
         worked = run_once(store, worker_id, artifact_root=args.artifact_root)
         if args.once:

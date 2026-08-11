@@ -13,5 +13,9 @@ declare namespace Cloudflare {
     ASSETS: Fetcher;
     /** D1 database holding scenarios, runs, and run artifacts. See docs/data-model.md. */
     DB: D1Database;
+    /** Private standard-study requests and immutable result bundles. */
+    STUDY_ARTIFACTS: R2Bucket;
+    /** Server-only bearer token used by Python compute workers. */
+    WORKER_API_TOKEN: string;
   }
 }

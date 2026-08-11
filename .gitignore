@@ -11,7 +11,7 @@ data/processed/*
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
-artifacts/
+/artifacts/
 reports/generated/
 # Python build output
 *.egg-info/

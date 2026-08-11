@@ -4,15 +4,15 @@ The web control plane for the CALB ESS Digital Twin. It authenticates users, val
 inputs, stores durable job records, reports progress, and serves results.
 
 **It performs no numerical work.** PyBaMM and the SOH engine run in the compute plane —
-a separate containerised Python service — which is not yet connected. See
+a separate containerised Python service connected through protected D1/R2 worker APIs. See
 `docs/architecture.md` §1 and `docs/deployment-and-capacity.md`.
 
 ## Current status
 
-Until a compute worker is connected, every run is served by the demonstrator progress
-engine and is stored with `engine = 'demo'`. Demonstrator numbers are derived at request
-time, are never persisted, and are surfaced as demonstrator output by both the API and the
-interface. They must not be used for commercial warranty decisions.
+The V0.2 codebase includes the remote standard-study transport. The ordinary simulation form
+still creates `engine = 'demo'` rows until the versioned product/scenario/calibration publisher is
+connected. Demonstrator numbers are derived at request time, never persisted, and must not be used
+for commercial warranty decisions.
 
 ## Stack
 

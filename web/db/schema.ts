@@ -250,6 +250,10 @@ export const runs = sqliteTable("runs", {
   engine: text("engine").notNull().default("demo"),
   modelVersion: text("model_version"),
   codeRevision: text("code_revision"),
+  /** Job contract and private R2 payload used by a real compute worker. */
+  jobContractVersion: text("job_contract_version"),
+  payloadObjectKey: text("payload_object_key"),
+  payloadChecksumSha256: text("payload_checksum_sha256"),
   status: text("status").notNull().default("queued"),
   progress: integer("progress").notNull().default(0),
   /** Summary scalar only. The full SOH series lives in `run_artifacts`. */
@@ -257,6 +261,7 @@ export const runs = sqliteTable("runs", {
   attempt: integer("attempt").notNull().default(0),
   leaseExpiresAt: text("lease_expires_at"),
   heartbeatAt: text("heartbeat_at"),
+  workerId: text("worker_id"),
   checkpointUri: text("checkpoint_uri"),
   error: text("error"),
   /** 0/1. Whether the duty cycle stayed inside the model's calibrated range. */
@@ -282,4 +287,5 @@ export const runArtifacts = sqliteTable("run_artifacts", {
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_run_artifacts_run").on(table.runId),
+  uniqueIndex("uq_run_artifacts_run_kind").on(table.runId, table.kind),
 ]);

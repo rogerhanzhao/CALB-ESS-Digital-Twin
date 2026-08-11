@@ -8,6 +8,8 @@ The production platform is split into a lightweight web control plane and one or
 - The job store remains authoritative when a browser closes or a user signs out.
 - Python workers claim queued jobs, execute PyBaMM/SOH/dispatch calculations, checkpoint intermediate state, and upload result artifacts.
 - A worker restart must resume from its latest checkpoint or safely retry an idempotent job.
+- Hosted workers use HTTPS bearer-authenticated control-plane endpoints. D1 retains leases and
+  summaries; private R2 stores payload and bundle bytes. Worker-local file URIs are never served.
 
 The initial hosted web release includes the control-plane experience and persistent per-user job records. Its progress engine is a deployment-safe demonstrator until the Python worker service is connected; it must not be used for commercial warranty decisions.
 
