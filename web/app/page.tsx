@@ -122,6 +122,23 @@ const statusLabel: Record<Simulation["status"], string> = {
 
 const EM_DASH = "—";
 
+const BASE_CANONICAL_MAPPINGS = [
+  ["timestamp", "iso8601"], ["elapsed_time_s", "s"], ["voltage_v", "V"],
+  ["current_a", "A"], ["cell_temperature_c", "degC"], ["ambient_temperature_c", "degC"],
+] as const;
+
+function canonicalMappingTemplate(testType: string): string {
+  const typeColumns: Record<string, ReadonlyArray<readonly [string, string]>> = {
+    cycle_aging: [["capacity_ah", "Ah"], ["cycle_index", "integer"], ["step_index", "integer"]],
+    calendar_aging: [["capacity_ah", "Ah"]],
+    hppc: [["soc_fraction", "fraction"], ["step_index", "integer"], ["rest_duration_s", "s"]],
+    temperature: [],
+  };
+  return JSON.stringify([...BASE_CANONICAL_MAPPINGS, ...(typeColumns[testType] ?? [])].map(([column, unit]) => ({
+    source_column: column, canonical_column: column, source_unit: unit,
+  })), null, 2);
+}
+
 export default function Home() {
   const [runs, setRuns] = useState<Simulation[]>(previewRuns);
   const [selected, setSelected] = useState(previewRuns[0].id);
@@ -156,7 +173,7 @@ export default function Home() {
   const [selectedValidationPolicy, setSelectedValidationPolicy] = useState("");
   const [datasetRevisionVersion, setDatasetRevisionVersion] = useState("R1");
   const [datasetRevisionCode, setDatasetRevisionCode] = useState("dataset-V1");
-  const [mappingJson, setMappingJson] = useState('[{"source_column":"timestamp","canonical_column":"timestamp","source_unit":"iso8601"}]');
+  const [mappingJson, setMappingJson] = useState(canonicalMappingTemplate("cycle_aging"));
   const [cyclePolicyJson, setCyclePolicyJson] = useState('{"step_roles":{"1":"charge","2":"rest","3":"discharge","4":"rest"},"full_cycle_sequence":["charge","rest","discharge","rest"]}');
   const [submittingRevision, setSubmittingRevision] = useState(false);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -178,7 +195,6 @@ export default function Home() {
   const [comparisonVersion, setComparisonVersion] = useState("V1");
   const [comparisonCodeRevision, setComparisonCodeRevision] = useState("compare-V1");
   const [submittingComparison, setSubmittingComparison] = useState(false);
-
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
     document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });

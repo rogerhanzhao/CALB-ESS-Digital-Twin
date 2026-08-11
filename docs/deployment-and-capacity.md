@@ -32,6 +32,12 @@ low-frequency workflow. Keep it in an independent queue so its limit can be set 
 use this estimate for future Monte Carlo, optimization, dispatch time-series, or electrochemical
 parameter sweeps.
 
+Dataset-revision jobs are also CPU-only and low-frequency. For the current 25 MiB upload ceiling,
+start with 2 vCPU and 4 GiB RAM. The main peak is pandas parsing and normalization rather than the
+electrochemical solver. This is an operational starting limit, not a measured production SLA;
+record peak RSS and elapsed time for representative calendar-aging and cycle-aging exports before
+raising the file ceiling or worker concurrency.
+
 ## Capacity guardrails
 
 - Default to one numerical job per worker process and cap solver memory.

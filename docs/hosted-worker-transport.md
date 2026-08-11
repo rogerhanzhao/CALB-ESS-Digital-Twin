@@ -79,6 +79,17 @@ stored evidence cannot reproduce its calculation.
 ## Operations
 
 - Rotate `WORKER_API_TOKEN` through Sites runtime values; do not commit it.
+- Give the external worker the same value as `CALB_ESS_WORKER_API_TOKEN`; keep it only in the
+  host secret store or an uncommitted `.env` file.
+- `deploy/worker/compose.yaml` starts one process for each independent queue. Copy
+  `deploy/worker/.env.example` to `.env`, replace both values, then run `docker compose up -d
+  --build` from that directory. The template limits dataset-revision and comparison workers to
+  2 CPU / 4 GiB each and the numerical standard-study worker to 4 CPU / 8 GiB.
+- Each process atomically refreshes `/var/run/calb-worker/status.json`. Docker marks the container
+  unhealthy if that file stops updating for 90 seconds. The JSON also distinguishes `idle` from
+  `transport_error` and exposes the consecutive outage count.
+- Transport failures use capped exponential backoff rather than polling the control plane every
+  two seconds throughout an outage.
 - Apply the D1 migration before starting remote workers.
 - Configure an R2 lifecycle rule for abandoned uploads while retaining completed evidence bundles.
 - Alert on expired leases, repeated attempts, payload integrity failures, and orphaned uploads.

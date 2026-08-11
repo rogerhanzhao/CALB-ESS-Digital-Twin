@@ -1,0 +1,35 @@
+name: calb-ess-compute
+
+x-worker: &worker
+  build:
+    context: ../..
+    dockerfile: compute/Dockerfile
+  restart: unless-stopped
+  environment:
+    CALB_ESS_WORKER_API_TOKEN: ${CALB_ESS_WORKER_API_TOKEN:?set CALB_ESS_WORKER_API_TOKEN}
+  volumes:
+    - worker-artifacts:/app/data/interim/remote-artifacts
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: 4G
+
+services:
+  dataset-revision:
+    <<: *worker
+    command: ["python", "-m", "compute.worker", "--remote-base-url", "${CALB_ESS_CONTROL_PLANE_URL}", "--remote-job-kind", "dataset-revision", "--poll-seconds", "5", "--status-file", "/var/run/calb-worker/status.json"]
+  study-comparison:
+    <<: *worker
+    command: ["python", "-m", "compute.worker", "--remote-base-url", "${CALB_ESS_CONTROL_PLANE_URL}", "--remote-job-kind", "study-comparison", "--poll-seconds", "5", "--status-file", "/var/run/calb-worker/status.json"]
+  standard-study:
+    <<: *worker
+    command: ["python", "-m", "compute.worker", "--remote-base-url", "${CALB_ESS_CONTROL_PLANE_URL}", "--remote-job-kind", "standard-study", "--poll-seconds", "5", "--status-file", "/var/run/calb-worker/status.json"]
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+
+volumes:
+  worker-artifacts:

@@ -7,4 +7,7 @@ COPY contracts ./contracts
 COPY compute ./compute
 RUN pip install --no-cache-dir .
 
-CMD ["python", "-m", "compute.worker"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["python", "-m", "compute.healthcheck", "--status-file", "/var/run/calb-worker/status.json"]
+
+CMD ["python", "-m", "compute.worker", "--status-file", "/var/run/calb-worker/status.json"]

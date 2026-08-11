@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, Thread
+from typing import Literal
 
 from calb_ess_digital_twin.cell_database import (
     DatasetRevisionRequest,
@@ -272,19 +273,22 @@ def keep_lease_alive(
         thread.join(timeout=max(heartbeat_interval * 2, 1))
 
 
-def run_once(
+WorkerCycleStatus = Literal["worked", "idle", "transport_error"]
+
+
+def run_cycle(
     store: WorkerStore,
     worker_id: str,
     lease_seconds: int = 60,
     heartbeat_interval: float | None = None,
     artifact_root: Path | None = None,
-) -> bool:
+) -> WorkerCycleStatus:
     try:
         row = store.claim(worker_id, lease_seconds=lease_seconds)
     except RemoteTransportError:
-        return False
+        return "transport_error"
     if row is None:
-        return False
+        return "idle"
     job_id = row["id"]
     try:
         raw_payload = json.loads(row["payload"])
@@ -317,18 +321,52 @@ def run_once(
     except (LeaseLostError, RemoteTransportError):
         # Do not turn uncertain ownership or a temporary control-plane outage into a model
         # failure. The lease expires and an owner can safely reuse the immutable bundle.
-        return True
+        return "worked"
     # A worker boundary must convert every job failure into durable state so the
     # process survives malformed payloads and numerical-engine exceptions.
     except Exception as exc:  # noqa: BLE001
         try:
             recorded = store.fail(job_id, worker_id, str(exc))
         except RemoteTransportError:
-            return True
+            return "worked"
         if not recorded:
             # A new owner may already be processing an expired lease. Do not overwrite it.
-            return True
-    return True
+            return "worked"
+    return "worked"
+
+
+def run_once(
+    store: WorkerStore,
+    worker_id: str,
+    lease_seconds: int = 60,
+    heartbeat_interval: float | None = None,
+    artifact_root: Path | None = None,
+) -> bool:
+    """Compatibility wrapper used by one-shot callers and unit tests."""
+    return run_cycle(store, worker_id, lease_seconds, heartbeat_interval, artifact_root) == "worked"
+
+
+def write_worker_status(
+    path: Path,
+    *,
+    worker_id: str,
+    job_kind: str,
+    cycle_status: WorkerCycleStatus,
+    consecutive_transport_errors: int,
+) -> None:
+    """Atomically publish liveness and control-plane connectivity for operators."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "V1",
+        "worker_id": worker_id,
+        "job_kind": job_kind,
+        "cycle_status": cycle_status,
+        "consecutive_transport_errors": consecutive_transport_errors,
+        "observed_at_epoch_seconds": time.time(),
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def main() -> None:
@@ -336,6 +374,8 @@ def main() -> None:
     parser.add_argument("--db", type=Path, default=Path("data/interim/jobs.sqlite3"))
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--max-backoff-seconds", type=float, default=60.0)
+    parser.add_argument("--status-file", type=Path)
     parser.add_argument("--artifact-root", type=Path)
     parser.add_argument("--remote-base-url")
     parser.add_argument(
@@ -345,6 +385,10 @@ def main() -> None:
         help="Select the independent hosted queue polled by this worker process.",
     )
     args = parser.parse_args()
+    if args.poll_seconds <= 0:
+        parser.error("--poll-seconds must be positive")
+    if args.max_backoff_seconds < args.poll_seconds:
+        parser.error("--max-backoff-seconds must be at least --poll-seconds")
     if args.remote_base_url:
         token = os.environ.get("CALB_ESS_WORKER_API_TOKEN", "")
         if not token:
@@ -356,12 +400,25 @@ def main() -> None:
     else:
         store = JobStore(args.db)
     worker_id = f"{socket.gethostname()}-{os.getpid()}"
+    transport_errors = 0
     while True:
-        worked = run_once(store, worker_id, artifact_root=args.artifact_root)
+        cycle_status = run_cycle(store, worker_id, artifact_root=args.artifact_root)
+        transport_errors = transport_errors + 1 if cycle_status == "transport_error" else 0
+        if args.status_file is not None:
+            write_worker_status(
+                args.status_file,
+                worker_id=worker_id,
+                job_kind=args.remote_job_kind if args.remote_base_url else "local",
+                cycle_status=cycle_status,
+                consecutive_transport_errors=transport_errors,
+            )
         if args.once:
             break
-        if not worked:
-            time.sleep(args.poll_seconds)
+        if cycle_status != "worked":
+            delay = args.poll_seconds
+            if cycle_status == "transport_error":
+                delay = min(args.poll_seconds * (2 ** min(transport_errors - 1, 10)), args.max_backoff_seconds)
+            time.sleep(delay)
 
 
 if __name__ == "__main__":
