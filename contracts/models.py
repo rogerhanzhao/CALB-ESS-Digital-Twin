@@ -1,4 +1,9 @@
-"""Single source of truth for simulation job and result payloads."""
+"""Single source of truth for simulation job and result payloads.
+
+Contract versions identify a payload shape, not a release milestone. A required field addition
+is therefore a breaking change and increments the major version. Job and result payloads evolve
+independently: changing one does not force a cosmetic version bump in the other.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,8 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+SOC_TOLERANCE = 1e-9
 
 
 class StrictModel(BaseModel):
@@ -27,20 +34,26 @@ class ScenarioInput(StrictModel):
     end_of_life_fraction: float = Field(ge=0.5, le=0.95)
 
     @model_validator(mode="after")
-    def cycling_requires_positive_depth(self) -> ScenarioInput:
+    def scenario_is_physically_consistent(self) -> ScenarioInput:
         if self.cycles_per_day > 0 and self.depth_of_discharge == 0:
             raise ValueError("depth_of_discharge must be positive when cycles_per_day is positive")
         if self.soc_window_min >= self.soc_window_max:
             raise ValueError("soc_window_min must be strictly below soc_window_max")
-        if self.depth_of_discharge > self.soc_window_max - self.soc_window_min + 1e-9:
+        # Physical fractions are decimal measurements. Without a tolerance, IEEE 754 makes
+        # 0.95 - 0.05 slightly less than 0.9 and rejects an ordinary 5%-95% / 90% DoD cycle.
+        if self.depth_of_discharge > self.soc_window_max - self.soc_window_min + SOC_TOLERANCE:
             raise ValueError("depth_of_discharge cannot exceed the declared SOC window")
-        if not self.soc_window_min - 1e-9 <= self.initial_soc <= self.soc_window_max + 1e-9:
+        if not (
+            self.soc_window_min - SOC_TOLERANCE
+            <= self.initial_soc
+            <= self.soc_window_max + SOC_TOLERANCE
+        ):
             raise ValueError("initial_soc must lie within the declared SOC window")
         return self
 
 
 class JobPayload(StrictModel):
-    contract_version: Literal["1.0"] = "1.0"
+    contract_version: Literal["2.0"] = "2.0"
     job_id: UUID
     scenario_id: UUID
     user_id: str = Field(min_length=1, max_length=200)

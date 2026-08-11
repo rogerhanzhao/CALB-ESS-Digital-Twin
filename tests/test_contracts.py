@@ -38,6 +38,14 @@ def test_contract_rejects_explicit_null() -> None:
         JobPayload.model_validate(data)
 
 
+def test_job_contract_version_identifies_the_soc_window_shape() -> None:
+    assert valid_job().contract_version == "2.0"
+    data = valid_job().model_dump(mode="json")
+    data["contract_version"] = "1.0"
+    with pytest.raises(ValidationError):
+        JobPayload.model_validate(data)
+
+
 def test_contract_rejects_unknown_fields() -> None:
     data = valid_job().model_dump(mode="json")
     data["invented"] = True
