@@ -17,6 +17,22 @@ type Simulation = {
   demo: boolean;
 };
 
+type ProductOption = { id: string; model: string; revision: string; status: string };
+type CalibrationOption = {
+  id: string;
+  productId: string;
+  artifactCalibrationId: string | null;
+  modelVersion: string;
+  status: string;
+};
+type StandardScenarioOption = {
+  id: string;
+  code: string;
+  version: number;
+  name: string;
+  status: string;
+};
+
 type AuthState = "unknown" | "anonymous" | "authenticated";
 type SectionId = "overview" | "products" | "test-data" | "models" | "runs" | "results" | "warranty";
 
@@ -62,6 +78,13 @@ export default function Home() {
   const [sampleCode, setSampleCode] = useState("");
   const [equipmentId, setEquipmentId] = useState("");
   const [operator, setOperator] = useState("");
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [calibrations, setCalibrations] = useState<CalibrationOption[]>([]);
+  const [standardScenarios, setStandardScenarios] = useState<StandardScenarioOption[]>([]);
+  const [selectedCalibration, setSelectedCalibration] = useState("");
+  const [selectedStandardScenario, setSelectedStandardScenario] = useState("");
+  const [studyStartDate, setStudyStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [submittingStandardStudy, setSubmittingStandardStudy] = useState(false);
 
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
@@ -90,6 +113,25 @@ export default function Home() {
             : payload.simulations[0]?.id ?? current,
         );
         setNotice("任务已同步 · 关闭页面不会中断计算");
+        const [productResponse, calibrationResponse, standardResponse] = await Promise.all([
+          fetch("/api/products", { cache: "no-store" }),
+          fetch("/api/calibrations", { cache: "no-store" }),
+          fetch("/api/standard-scenarios", { cache: "no-store" }),
+        ]);
+        if (productResponse.ok) {
+          const data = await productResponse.json() as { products: ProductOption[] };
+          setProducts(data.products);
+        }
+        if (calibrationResponse.ok) {
+          const data = await calibrationResponse.json() as { calibrations: CalibrationOption[] };
+          setCalibrations(data.calibrations);
+          setSelectedCalibration((current) => current || data.calibrations.find((item) => item.status === "approved")?.id || "");
+        }
+        if (standardResponse.ok) {
+          const data = await standardResponse.json() as { standardScenarios: StandardScenarioOption[] };
+          setStandardScenarios(data.standardScenarios);
+          setSelectedStandardScenario((current) => current || data.standardScenarios.find((item) => item.status === "released")?.id || "");
+        }
       } catch {
         // Network failure during local preview: keep the rows already on screen.
       }
@@ -159,6 +201,37 @@ export default function Home() {
     setNotice("测试数据元数据与 SHA-256 已登记；原始文件等待对象存储接入");
   }
 
+  async function submitStandardStudy(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedStandardScenario || !selectedCalibration) {
+      setNotice("需要先选择已发布标准工况与已批准校准");
+      return;
+    }
+    setSubmittingStandardStudy(true);
+    try {
+      const response = await fetch("/api/standard-studies", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({
+          standardScenarioId: selectedStandardScenario,
+          calibrationId: selectedCalibration,
+          studyStartDate,
+        }),
+      });
+      const payload = await response.json() as { simulation?: Simulation; error?: string; details?: string[] };
+      if (!response.ok || !payload.simulation) {
+        throw new Error(payload.details?.join("；") ?? payload.error ?? "标准研究提交失败");
+      }
+      setRuns((items) => [payload.simulation!, ...items.filter((item) => item.id !== payload.simulation!.id)]);
+      setSelected(payload.simulation.id);
+      setNotice("真实标准研究已写入持久队列，等待 Python Worker 领取");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "标准研究提交失败");
+    } finally {
+      setSubmittingStandardStudy(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -173,7 +246,7 @@ export default function Home() {
             <a key={id} href={`#${id}`} aria-current={activeSection === id ? "page" : undefined} className={`nav-item ${activeSection === id ? "active" : ""}`} onClick={() => setActiveSection(id)}><span>{icon}</span>{label}</a>
           ))}
         </nav>
-        <div className="sidebar-foot"><span className="live-dot" />控制面在线<small>计算面尚未接入</small></div>
+        <div className="sidebar-foot"><span className="live-dot" />控制面在线<small>Worker API 已接入 · 节点待配置</small></div>
       </aside>
 
       <section className="workspace" id="overview">
@@ -192,7 +265,7 @@ export default function Home() {
         <div className="metrics">
           <article><span>运行中任务</span><strong>{auth === "authenticated" ? activeCount : EM_DASH}</strong><small>{auth === "authenticated" ? "用户退出后继续执行" : "登录后显示"}</small></article>
           <article><span>已完成任务</span><strong>{auth === "authenticated" ? completedCount : EM_DASH}</strong><small>当前查询范围内</small></article>
-          <article><span>模型版本</span><strong>{current?.modelVersion ?? EM_DASH}</strong><small>计算内核尚未接入</small></article>
+          <article><span>模型版本</span><strong>{current?.modelVersion ?? EM_DASH}</strong><small>以任务记录为准</small></article>
           <article><span>计算节点负载</span><strong>{EM_DASH}</strong><small>计算面接入后可用</small></article>
         </div>
 
@@ -236,6 +309,13 @@ export default function Home() {
 
         <section className="panel runs" id="runs">
           <div className="panel-head"><div><p className="eyebrow">PERSISTENT JOB QUEUE</p><h2>最近任务</h2></div><button className="text-button">查看全部 →</button></div>
+          <form className="compact-form standard-study-form" onSubmit={submitStandardStudy}>
+            <label>已发布标准工况<select value={selectedStandardScenario} onChange={(event) => setSelectedStandardScenario(event.target.value)} required><option value="">请选择</option>{standardScenarios.filter((item) => item.status === "released").map((item) => <option key={item.id} value={item.id}>{item.name} · {item.code}-V{item.version}</option>)}</select></label>
+            <label>已批准校准<select value={selectedCalibration} onChange={(event) => setSelectedCalibration(event.target.value)} required><option value="">请选择</option>{calibrations.filter((item) => item.status === "approved").map((item) => { const product = products.find((candidate) => candidate.id === item.productId); return <option key={item.id} value={item.id}>{product ? `${product.model} ${product.revision} · ` : ""}{item.modelVersion}</option>; })}</select></label>
+            <label>研究起始日<input type="date" value={studyStartDate} onChange={(event) => setStudyStartDate(event.target.value)} required /></label>
+            <button className="secondary-button" disabled={submittingStandardStudy}>{submittingStandardStudy ? "正在入队…" : "启动真实标准研究"}</button>
+          </form>
+          <p className="helper">仅使用已发布产品、已发布标准工况及已批准校准；任务保存完整 V0.2 输入证据并由独立 Python Worker 异步执行。</p>
           <div className="table"><div className="table-row table-head"><span>任务</span><span>工况</span><span>进度</span><span>状态</span><span>期末 SOH</span></div>{runs.slice(0, 5).map((run) => <button className={`table-row ${selected === run.id ? "selected" : ""}`} key={run.id} onClick={() => setSelected(run.id)}><span><b>{run.name}</b><small>{run.id}</small></span><span>{run.horizonYears} 年 · {run.cyclesPerDay} 循环/日</span><span><progress value={run.progress} max="100" /> {run.progress}%</span><span><i className={`mini-dot ${run.status}`} />{statusLabel[run.status]}{run.demo && <em className="demo-chip">演示</em>}</span><span>{run.endSoh != null ? `${run.endSoh}%` : EM_DASH}</span></button>)}</div>
         </section>
 
