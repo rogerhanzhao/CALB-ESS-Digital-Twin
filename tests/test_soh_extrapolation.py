@@ -194,6 +194,15 @@ def test_exposure_trajectory_cannot_move_backward() -> None:
         _request(points=points)
 
 
+def test_planned_cycle_count_can_be_fractional_without_rounding() -> None:
+    points = _points()
+    points[1] = points[1].model_copy(update={"cycle_count": 182.5})
+
+    result = extrapolate_soh(_request(points=points))
+
+    assert result.points[1].cycle_count == 182.5
+
+
 def test_non_physical_prediction_is_reported_without_clipping() -> None:
     calibration = _calibration()
     calibration.parameters = SemiEmpiricalParameters(
