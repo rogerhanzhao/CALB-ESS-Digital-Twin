@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from calb_ess_digital_twin.soh_engine import (
     AgingObservation,
     CalibrationRequest,
+    ExtrapolationLimits,
     SemiEmpiricalParameters,
     SplitRole,
     capacity_fraction,
@@ -77,6 +78,12 @@ def _request(
         validation_rmse_limit_fraction=validation_limit,
         minimum_training_sample_count=3,
         minimum_validation_sample_count=2,
+        approved_extrapolation_limits=ExtrapolationLimits(
+            maximum_elapsed_days=7300,
+            maximum_cycle_count=7300,
+            maximum_equivalent_full_cycles=6500,
+            maximum_absolute_throughput_ah=26000,
+        ),
     )
 
 
@@ -106,8 +113,10 @@ def test_validation_points_do_not_expand_training_validity_envelope() -> None:
     envelope = result.validity_envelope
     assert envelope.temperature_min_c == 15
     assert envelope.temperature_max_c == 35
-    assert envelope.maximum_elapsed_days == 625
-    assert envelope.maximum_absolute_throughput_ah == 800
+    assert envelope.training_maximum_elapsed_days == 625
+    assert envelope.training_maximum_absolute_throughput_ah == 800
+    assert envelope.approved_extrapolation_limits.maximum_elapsed_days == 7300
+    assert envelope.approved_extrapolation_limits.maximum_absolute_throughput_ah == 26000
 
 
 def test_sample_identity_cannot_leak_across_train_and_validation() -> None:
@@ -130,6 +139,14 @@ def test_method_declares_minimum_independent_sample_counts() -> None:
     request_data["minimum_validation_sample_count"] = 3
 
     with pytest.raises(ValidationError, match="minimum_validation_sample_count"):
+        CalibrationRequest.model_validate(request_data)
+
+
+def test_approved_extrapolation_limit_cannot_hide_training_evidence() -> None:
+    request_data = _request().model_dump(mode="python")
+    request_data["approved_extrapolation_limits"]["maximum_elapsed_days"] = 100
+
+    with pytest.raises(ValidationError, match="cannot be below training evidence"):
         CalibrationRequest.model_validate(request_data)
 
 

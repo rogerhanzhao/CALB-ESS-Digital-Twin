@@ -30,6 +30,10 @@ are retained as a structured validity envelope for later binned or hierarchical 
   overdetermined; repeated check-ups from one sample do not count as independent samples.
 - The validity envelope is derived from training observations only. Validation points cannot
   silently expand it.
+- Training exposure maxima and method-approved extrapolation limits are separate fields. The
+  method may authorize a longer study horizon, but the artifact always retains how far beyond the
+  observed evidence that authorization extends. Approved limits cannot be lower than the training
+  evidence and generic code never invents them.
 - Exponent bounds and the acceptable validation RMSE come from the versioned calibration method;
   generic code contains no product acceptance threshold.
 - Coefficients are constrained non-negative, which makes predicted capacity non-increasing with

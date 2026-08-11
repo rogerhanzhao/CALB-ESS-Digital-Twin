@@ -60,6 +60,7 @@ class CalibrationRequest(BaseModel):
     validation_rmse_limit_fraction: float = Field(ge=0)
     minimum_training_sample_count: int = Field(ge=1)
     minimum_validation_sample_count: int = Field(ge=1)
+    approved_extrapolation_limits: ExtrapolationLimits
 
     @model_validator(mode="after")
     def method_is_auditable_and_leak_free(self) -> CalibrationRequest:
@@ -86,6 +87,21 @@ class CalibrationRequest(BaseModel):
             raise ValueError("training split does not meet minimum_training_sample_count")
         if len(validation_samples) < self.minimum_validation_sample_count:
             raise ValueError("validation split does not meet minimum_validation_sample_count")
+        observed_maxima = {
+            "maximum_elapsed_days": max(item.elapsed_days for item in train),
+            "maximum_cycle_count": max(item.cycle_count for item in train),
+            "maximum_equivalent_full_cycles": max(
+                item.equivalent_full_cycles for item in train
+            ),
+            "maximum_absolute_throughput_ah": max(
+                item.absolute_throughput_ah for item in train
+            ),
+        }
+        for field, observed in observed_maxima.items():
+            if getattr(self.approved_extrapolation_limits, field) < observed:
+                raise ValueError(
+                    f"approved_extrapolation_limits.{field} cannot be below training evidence"
+                )
         return self
 
 
@@ -109,6 +125,17 @@ class FitMetrics(BaseModel):
     solver_evaluations: int = Field(ge=0)
 
 
+class ExtrapolationLimits(BaseModel):
+    """Method-approved horizon; separate from the observed training exposure."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    maximum_elapsed_days: float = Field(ge=0)
+    maximum_cycle_count: int = Field(ge=0)
+    maximum_equivalent_full_cycles: float = Field(ge=0)
+    maximum_absolute_throughput_ah: float = Field(ge=0)
+
+
 class CalibrationValidityEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
@@ -123,10 +150,11 @@ class CalibrationValidityEnvelope(BaseModel):
     charge_c_rate_max: float
     discharge_c_rate_min: float
     discharge_c_rate_max: float
-    maximum_elapsed_days: float
-    maximum_cycle_count: int
-    maximum_equivalent_full_cycles: float
-    maximum_absolute_throughput_ah: float
+    training_maximum_elapsed_days: float
+    training_maximum_cycle_count: int
+    training_maximum_equivalent_full_cycles: float
+    training_maximum_absolute_throughput_ah: float
+    approved_extrapolation_limits: ExtrapolationLimits
 
 
 class ObservationFit(BaseModel):
@@ -263,7 +291,7 @@ def fit_semi_empirical_model(request: CalibrationRequest) -> CalibrationResult:
             solver_cost=float(solution.cost),
             solver_evaluations=int(solution.nfev),
         ),
-        validity_envelope=_envelope(train),
+        validity_envelope=_envelope(train, request.approved_extrapolation_limits),
         fit_converged=bool(solution.success),
         identifiable=identifiable,
         parameters_at_bounds=parameters_at_bounds,
@@ -315,7 +343,9 @@ def _observation_fit(
     )
 
 
-def _envelope(train: list[AgingObservation]) -> CalibrationValidityEnvelope:
+def _envelope(
+    train: list[AgingObservation], approved_limits: ExtrapolationLimits
+) -> CalibrationValidityEnvelope:
     def values(name: str) -> list[float]:
         return [float(getattr(item, name)) for item in train]
 
@@ -331,8 +361,9 @@ def _envelope(train: list[AgingObservation]) -> CalibrationValidityEnvelope:
         charge_c_rate_max=max(values("max_charge_c_rate")),
         discharge_c_rate_min=min(values("max_discharge_c_rate")),
         discharge_c_rate_max=max(values("max_discharge_c_rate")),
-        maximum_elapsed_days=max(values("elapsed_days")),
-        maximum_cycle_count=max(item.cycle_count for item in train),
-        maximum_equivalent_full_cycles=max(values("equivalent_full_cycles")),
-        maximum_absolute_throughput_ah=max(values("absolute_throughput_ah")),
+        training_maximum_elapsed_days=max(values("elapsed_days")),
+        training_maximum_cycle_count=max(item.cycle_count for item in train),
+        training_maximum_equivalent_full_cycles=max(values("equivalent_full_cycles")),
+        training_maximum_absolute_throughput_ah=max(values("absolute_throughput_ah")),
+        approved_extrapolation_limits=approved_limits,
     )
