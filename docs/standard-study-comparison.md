@@ -74,4 +74,7 @@ The hosted control plane now exposes an independent D1 lease queue and R2 namesp
 `/api/worker/comparisons/**`. Start a dedicated process with
 `--remote-base-url <site-url> --remote-job-kind study-comparison`; it claims only comparison jobs,
 uploads the exact three-file bundle, and commits summary deltas only after R2 metadata and SHA-256
-checks pass. Browser submission is limited to two owned, completed standard-study evidence sets.
+checks pass. The control plane also recomputes the like-for-like exposure axes, annual deltas,
+direction counts, trust-state transitions, issue changes and provenance identities before the D1
+completion batch is allowed. Browser submission is limited to two owned, completed standard-study
+evidence sets.

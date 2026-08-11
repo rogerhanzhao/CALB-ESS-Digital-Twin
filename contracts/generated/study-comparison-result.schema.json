@@ -1,0 +1,235 @@
+{
+  "$defs": {
+    "CapacityDirection": {
+      "enum": [
+        "improved",
+        "degraded",
+        "unchanged"
+      ],
+      "title": "CapacityDirection",
+      "type": "string"
+    },
+    "StudyPointComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "added_issues": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Added Issues",
+          "type": "array"
+        },
+        "baseline_capacity_fraction": {
+          "title": "Baseline Capacity Fraction",
+          "type": "number"
+        },
+        "calendar_date": {
+          "format": "date",
+          "title": "Calendar Date",
+          "type": "string"
+        },
+        "capacity_delta_fraction": {
+          "title": "Capacity Delta Fraction",
+          "type": "number"
+        },
+        "capacity_direction": {
+          "$ref": "#/$defs/CapacityDirection"
+        },
+        "current_capacity_fraction": {
+          "title": "Current Capacity Fraction",
+          "type": "number"
+        },
+        "physical_transition": {
+          "$ref": "#/$defs/TrustTransition"
+        },
+        "removed_issues": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Removed Issues",
+          "type": "array"
+        },
+        "validity_transition": {
+          "$ref": "#/$defs/TrustTransition"
+        },
+        "year": {
+          "title": "Year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "year",
+        "calendar_date",
+        "baseline_capacity_fraction",
+        "current_capacity_fraction",
+        "capacity_delta_fraction",
+        "capacity_direction",
+        "validity_transition",
+        "physical_transition",
+        "added_issues",
+        "removed_issues"
+      ],
+      "title": "StudyPointComparison",
+      "type": "object"
+    },
+    "TrustTransition": {
+      "enum": [
+        "stayed_valid",
+        "stayed_invalid",
+        "became_valid",
+        "became_invalid"
+      ],
+      "title": "TrustTransition",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "baseline_calibration_id": {
+      "title": "Baseline Calibration Id",
+      "type": "string"
+    },
+    "baseline_dataset_revision_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Baseline Dataset Revision Ids",
+      "type": "array"
+    },
+    "baseline_result_version": {
+      "title": "Baseline Result Version",
+      "type": "string"
+    },
+    "baseline_study_version": {
+      "title": "Baseline Study Version",
+      "type": "string"
+    },
+    "calibration_evidence_changed": {
+      "title": "Calibration Evidence Changed",
+      "type": "boolean"
+    },
+    "capacity_delta_tolerance_fraction": {
+      "title": "Capacity Delta Tolerance Fraction",
+      "type": "number"
+    },
+    "comparison_is_like_for_like": {
+      "const": true,
+      "default": true,
+      "title": "Comparison Is Like For Like",
+      "type": "boolean"
+    },
+    "comparison_version": {
+      "title": "Comparison Version",
+      "type": "string"
+    },
+    "current_calibration_id": {
+      "title": "Current Calibration Id",
+      "type": "string"
+    },
+    "current_dataset_revision_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Current Dataset Revision Ids",
+      "type": "array"
+    },
+    "current_result_version": {
+      "title": "Current Result Version",
+      "type": "string"
+    },
+    "current_study_version": {
+      "title": "Current Study Version",
+      "type": "string"
+    },
+    "degraded_point_count": {
+      "title": "Degraded Point Count",
+      "type": "integer"
+    },
+    "engineering_review_eligibility_changed": {
+      "title": "Engineering Review Eligibility Changed",
+      "type": "boolean"
+    },
+    "final_capacity_delta_fraction": {
+      "title": "Final Capacity Delta Fraction",
+      "type": "number"
+    },
+    "improved_point_count": {
+      "title": "Improved Point Count",
+      "type": "integer"
+    },
+    "maximum_absolute_capacity_delta_fraction": {
+      "title": "Maximum Absolute Capacity Delta Fraction",
+      "type": "number"
+    },
+    "physical_validity_changed_years": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Physical Validity Changed Years",
+      "type": "array"
+    },
+    "points": {
+      "items": {
+        "$ref": "#/$defs/StudyPointComparison"
+      },
+      "title": "Points",
+      "type": "array"
+    },
+    "product_revision": {
+      "title": "Product Revision",
+      "type": "string"
+    },
+    "scenario_code_revision_changed": {
+      "title": "Scenario Code Revision Changed",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "standard_scenario_version": {
+      "title": "Standard Scenario Version",
+      "type": "string"
+    },
+    "unchanged_point_count": {
+      "title": "Unchanged Point Count",
+      "type": "integer"
+    },
+    "validity_changed_years": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Validity Changed Years",
+      "type": "array"
+    }
+  },
+  "required": [
+    "comparison_version",
+    "product_revision",
+    "standard_scenario_version",
+    "baseline_study_version",
+    "current_study_version",
+    "baseline_result_version",
+    "current_result_version",
+    "baseline_calibration_id",
+    "current_calibration_id",
+    "baseline_dataset_revision_ids",
+    "current_dataset_revision_ids",
+    "calibration_evidence_changed",
+    "scenario_code_revision_changed",
+    "capacity_delta_tolerance_fraction",
+    "maximum_absolute_capacity_delta_fraction",
+    "final_capacity_delta_fraction",
+    "improved_point_count",
+    "degraded_point_count",
+    "unchanged_point_count",
+    "validity_changed_years",
+    "physical_validity_changed_years",
+    "engineering_review_eligibility_changed",
+    "points"
+  ],
+  "title": "StudyComparisonResult",
+  "type": "object"
+}

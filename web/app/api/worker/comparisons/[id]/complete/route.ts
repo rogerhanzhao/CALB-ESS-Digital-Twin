@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { verifyComparisonEvidenceBundle } from "../../../../../../lib/comparison-evidence";
 import { parseComparisonWorkerCompletion, workerRequestIsAuthorized } from "../../../../../../lib/worker-api";
 
 type Context = { params: Promise<{ id: string }> };
@@ -15,19 +16,29 @@ export async function POST(request: Request, { params }: Context) {
   const completion = parseComparisonWorkerCompletion(body, id);
   if (!completion) return Response.json({ error: "invalid worker completion" }, { status: 400 });
   const owned = await env.DB.prepare(
-    "SELECT 1 AS owned FROM study_comparisons WHERE id = ? AND worker_id = ? AND status = 'running'",
-  ).bind(id, completion.workerId).first<{ owned: number }>();
+    `SELECT comparison_version, code_revision FROM study_comparisons
+      WHERE id = ? AND worker_id = ? AND status = 'running'`,
+  ).bind(id, completion.workerId).first<{ comparison_version: string; code_revision: string }>();
   if (!owned) {
     return Response.json({ error: "worker does not own this running comparison" }, { status: 409 });
   }
+  const contents = {} as Record<(typeof completion.artifacts)[number]["kind"], ArrayBuffer>;
   for (const artifact of completion.artifacts) {
-    const stored = await env.STUDY_ARTIFACTS.head(artifact.objectKey);
+    const stored = await env.STUDY_ARTIFACTS.get(artifact.objectKey);
     if (!stored || stored.size !== artifact.sizeBytes ||
         stored.customMetadata?.sha256 !== artifact.checksumSha256 ||
         stored.customMetadata?.comparisonId !== id ||
         stored.customMetadata?.kind !== artifact.kind) {
       return Response.json({ error: `stored artifact failed verification: ${artifact.kind}` }, { status: 409 });
     }
+    contents[artifact.kind] = await stored.arrayBuffer();
+  }
+  const evidence = await verifyComparisonEvidenceBundle(contents, completion, {
+    comparisonVersion: owned.comparison_version,
+    codeRevision: owned.code_revision,
+  });
+  if (!evidence.ok) {
+    return Response.json({ error: `comparison evidence failed verification: ${evidence.reason}` }, { status: 409 });
   }
   const now = new Date().toISOString();
   const statements = completion.artifacts.map((artifact) => env.DB.prepare(

@@ -1,0 +1,22 @@
+{
+  "baseline_result_version": "result-V1",
+  "comparison_is_like_for_like": true,
+  "comparison_version": "comparison-V1",
+  "current_result_version": "result-V2",
+  "files": [
+    {
+      "byte_count": 19042,
+      "content_type": "application/json",
+      "file_name": "comparison-request.json",
+      "sha256": "d40e8c42deeecd8c78be7a9fe5917ab43c3c2f4e3a0ad055f303eaab43dbdb11"
+    },
+    {
+      "byte_count": 2283,
+      "content_type": "application/json",
+      "file_name": "comparison-result.json",
+      "sha256": "390b852ed04e6c4b6974c43af6156ea8bee6f8dfe2da2cad96c79855f60817eb"
+    }
+  ],
+  "schema_version": "V0.2",
+  "warranty_amendment": false
+}

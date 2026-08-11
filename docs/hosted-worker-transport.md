@@ -35,6 +35,13 @@ three comparison evidence files, and never claim or mutate standard-study rows. 
 keeps small version-comparison workloads from changing the semantics or capacity policy of the
 numerical simulation queue.
 
+Comparison completion is evidence-derived, not worker-trusted. After checking R2 metadata, the
+control plane re-hashes and parses all three JSON files, validates their generated schemas,
+cross-checks request/result/manifest identities and manifest file records, independently recomputes
+every annual capacity delta, classification, validity transition and issue-set change from the two
+source study trajectories, and compares the aggregate result with the worker completion summary.
+Any mismatch leaves the comparison running and returns a conflict instead of publishing evidence.
+
 ## Deliberately unresolved submission boundary
 
 This change does not let a browser invent a full calibration artifact and enqueue it. A truthful

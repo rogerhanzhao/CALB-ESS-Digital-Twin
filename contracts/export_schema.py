@@ -8,7 +8,11 @@ from typing import Any
 
 from calb_ess_digital_twin.soh_engine import CalibrationResult
 from calb_ess_digital_twin.standard_study import StandardStudyRequest
-from calb_ess_digital_twin.study_comparison import StudyComparisonRequest
+from calb_ess_digital_twin.study_comparison import (
+    StudyComparisonManifest,
+    StudyComparisonRequest,
+    StudyComparisonResult,
+)
 from contracts.models import ComparisonJobPayload, ComparisonJobResult, JobPayload, RunResult
 
 
@@ -73,6 +77,8 @@ def export(output_dir: Path) -> None:
         "comparison-job.schema.json": ComparisonJobPayload,
         "comparison-job-result.schema.json": ComparisonJobResult,
         "study-comparison-request.schema.json": StudyComparisonRequest,
+        "study-comparison-result.schema.json": StudyComparisonResult,
+        "study-comparison-manifest.schema.json": StudyComparisonManifest,
     }
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"

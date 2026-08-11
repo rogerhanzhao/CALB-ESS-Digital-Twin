@@ -1,0 +1,68 @@
+{
+  "baseline_calibration_id": "calibration-V1",
+  "baseline_dataset_revision_ids": [
+    "dataset-revision-V1"
+  ],
+  "baseline_result_version": "result-V1",
+  "baseline_study_version": "study-V1",
+  "calibration_evidence_changed": true,
+  "capacity_delta_tolerance_fraction": 1e-09,
+  "comparison_is_like_for_like": true,
+  "comparison_version": "comparison-V1",
+  "current_calibration_id": "calibration-V2",
+  "current_dataset_revision_ids": [
+    "dataset-revision-V2"
+  ],
+  "current_result_version": "result-V2",
+  "current_study_version": "study-V2",
+  "degraded_point_count": 0,
+  "engineering_review_eligibility_changed": false,
+  "final_capacity_delta_fraction": 0.0027037011669190925,
+  "improved_point_count": 2,
+  "maximum_absolute_capacity_delta_fraction": 0.0027037011669190925,
+  "physical_validity_changed_years": [],
+  "points": [
+    {
+      "added_issues": [],
+      "baseline_capacity_fraction": 1.0,
+      "calendar_date": "2024-01-01",
+      "capacity_delta_fraction": 0.0,
+      "capacity_direction": "unchanged",
+      "current_capacity_fraction": 1.0,
+      "physical_transition": "stayed_valid",
+      "removed_issues": [],
+      "validity_transition": "stayed_valid",
+      "year": 0
+    },
+    {
+      "added_issues": [],
+      "baseline_capacity_fraction": 0.9818404519117553,
+      "calendar_date": "2025-01-01",
+      "capacity_delta_fraction": 0.0019131126469709159,
+      "capacity_direction": "improved",
+      "current_capacity_fraction": 0.9837535645587262,
+      "physical_transition": "stayed_valid",
+      "removed_issues": [],
+      "validity_transition": "stayed_valid",
+      "year": 1
+    },
+    {
+      "added_issues": [],
+      "baseline_capacity_fraction": 0.9715348526923572,
+      "calendar_date": "2026-01-01",
+      "capacity_delta_fraction": 0.0027037011669190925,
+      "capacity_direction": "improved",
+      "current_capacity_fraction": 0.9742385538592763,
+      "physical_transition": "stayed_valid",
+      "removed_issues": [],
+      "validity_transition": "stayed_valid",
+      "year": 2
+    }
+  ],
+  "product_revision": "product-revision-001",
+  "scenario_code_revision_changed": false,
+  "schema_version": "V0.2",
+  "standard_scenario_version": "scenario-V1",
+  "unchanged_point_count": 1,
+  "validity_changed_years": []
+}

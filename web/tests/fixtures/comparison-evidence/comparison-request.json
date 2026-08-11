@@ -1,0 +1,525 @@
+{
+  "baseline": {
+    "artifact": {
+      "exposure": {
+        "assumptions": [
+          "constant cycles per operating day over each calendar interval",
+          "operating availability is applied uniformly to actual calendar days",
+          "one scheduled cycle contributes DoD equivalent full cycles",
+          "absolute Ah throughput uses two times nominal capacity times EFC",
+          "capacity fade, auxiliary energy, RTE, and dispatch constraints are not included"
+        ],
+        "calendar_basis": "actual_calendar_days",
+        "code_revision": "scenario123",
+        "conditions": {
+          "cell_temperature_c": 25.0,
+          "depth_of_discharge": 0.8,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "mean_soc": 0.5,
+          "product_revision": "product-revision-001"
+        },
+        "exposure_points": [
+          {
+            "absolute_throughput_ah": 0.0,
+            "calendar_date": "2024-01-01",
+            "cycle_count": 0.0,
+            "elapsed_days": 0.0,
+            "equivalent_full_cycles": 0.0,
+            "year": 0
+          },
+          {
+            "absolute_throughput_ah": 82745.28000000001,
+            "calendar_date": "2025-01-01",
+            "cycle_count": 164.70000000000002,
+            "elapsed_days": 366.0,
+            "equivalent_full_cycles": 131.76000000000002,
+            "year": 1
+          },
+          {
+            "absolute_throughput_ah": 165264.48,
+            "calendar_date": "2026-01-01",
+            "cycle_count": 328.95,
+            "elapsed_days": 731.0,
+            "equivalent_full_cycles": 263.16,
+            "year": 2
+          }
+        ],
+        "plan": {
+          "cell_temperature_c": 25.0,
+          "code_revision": "scenario123",
+          "cycles_per_operating_day": 0.5,
+          "depth_of_discharge": 0.8,
+          "horizon_years": 2,
+          "initial_absolute_throughput_ah": 0.0,
+          "initial_cycle_count": 0.0,
+          "initial_elapsed_days": 0.0,
+          "initial_equivalent_full_cycles": 0.0,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "nominal_capacity_ah": 314.0,
+          "operating_availability_fraction": 0.9,
+          "product_revision": "product-revision-001",
+          "schema_version": "V0.2",
+          "soc_window_max": 0.9,
+          "soc_window_min": 0.1,
+          "standard_scenario_version": "scenario-V1",
+          "study_start_date": "2024-01-01"
+        },
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "standard_scenario_version": "scenario-V1",
+        "throughput_basis": "nominal_cell_capacity"
+      },
+      "result_version": "result-V1",
+      "schema_version": "V0.2",
+      "soh_result": {
+        "all_points_within_validity_envelope": true,
+        "all_predictions_physically_valid": true,
+        "calibration_approval_status": "approved",
+        "calibration_id": "calibration-V1",
+        "calibration_model_version": "semi-empirical-V1",
+        "conditions": {
+          "cell_temperature_c": 25.0,
+          "depth_of_discharge": 0.8,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "mean_soc": 0.5,
+          "product_revision": "product-revision-001"
+        },
+        "engineering_review_eligible": true,
+        "points": [
+          {
+            "absolute_throughput_ah": 0.0,
+            "calendar_date": "2024-01-01",
+            "cycle_count": 0.0,
+            "elapsed_days": 0.0,
+            "equivalent_full_cycles": 0.0,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 1.0,
+            "within_validity_envelope": true,
+            "year": 0
+          },
+          {
+            "absolute_throughput_ah": 82745.28000000001,
+            "calendar_date": "2025-01-01",
+            "cycle_count": 164.70000000000002,
+            "elapsed_days": 366.0,
+            "equivalent_full_cycles": 131.76000000000002,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 0.9818404519117553,
+            "within_validity_envelope": true,
+            "year": 1
+          },
+          {
+            "absolute_throughput_ah": 165264.48,
+            "calendar_date": "2026-01-01",
+            "cycle_count": 328.95,
+            "elapsed_days": 731.0,
+            "equivalent_full_cycles": 263.16,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 0.9715348526923572,
+            "within_validity_envelope": true,
+            "year": 2
+          }
+        ],
+        "product_revision": "product-revision-001",
+        "result_version": "result-V1",
+        "schema_version": "V0.2",
+        "standard_scenario_version": "scenario-V1",
+        "uncertainty_status": "not_quantified",
+        "warnings": [
+          "uncertainty is not quantified; this trajectory cannot directly support warranty output"
+        ],
+        "warranty_eligible": false
+      },
+      "study_version": "study-V1"
+    },
+    "manifest": {
+      "calibration_approval_status": "approved",
+      "calibration_code_revision": "calV1123",
+      "calibration_dataset_revision_ids": [
+        "dataset-revision-V1"
+      ],
+      "calibration_id": "calibration-V1",
+      "calibration_model_version": "semi-empirical-V1",
+      "engineering_review_eligible": true,
+      "files": [
+        {
+          "byte_count": 2612,
+          "content_type": "application/json",
+          "file_name": "study-request.json",
+          "sha256": "fc9f28488d4cf95f85205176f05f68ea36a7f217788d5c8b73e89ba2399bf621"
+        },
+        {
+          "byte_count": 2209,
+          "content_type": "application/json",
+          "file_name": "scenario-exposure.json",
+          "sha256": "9296901377676b32866f1de85400f453722b621a2c1bd607b56655641ff6602b"
+        },
+        {
+          "byte_count": 1946,
+          "content_type": "application/json",
+          "file_name": "soh-result.json",
+          "sha256": "0d5f68b78f2ed08cd11a87644a3ec87dc69d46f0e5698c37a29eb8cc869d4035"
+        }
+      ],
+      "result_version": "result-V1",
+      "scenario_code_revision": "scenario123",
+      "schema_version": "V0.2",
+      "standard_scenario_version": "scenario-V1",
+      "study_version": "study-V1",
+      "warranty_eligible": false
+    },
+    "request": {
+      "calibration": {
+        "approval_eligible": true,
+        "calibration_id": "calibration-V1",
+        "code_revision": "calV1123",
+        "dataset_revision_ids": [
+          "dataset-revision-V1"
+        ],
+        "fit_converged": true,
+        "identifiable": true,
+        "meets_validation_limit": true,
+        "metrics": {
+          "jacobian_condition_number": 100.0,
+          "jacobian_rank": 3,
+          "solver_cost": 0.001,
+          "solver_evaluations": 20,
+          "training_rmse_fraction": 0.001,
+          "validation_max_absolute_error_fraction": 0.003,
+          "validation_rmse_fraction": 0.002
+        },
+        "model_version": "semi-empirical-V1",
+        "observation_fits": [],
+        "parameters": {
+          "calendar_coefficient_per_sqrt_day": 0.0005,
+          "throughput_coefficient_per_ah_power": 1e-06,
+          "throughput_exponent": 0.8
+        },
+        "parameters_at_bounds": false,
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "validity_envelope": {
+          "approved_extrapolation_limits": {
+            "maximum_absolute_throughput_ah": 2000000.0,
+            "maximum_cycle_count": 8000,
+            "maximum_elapsed_days": 7300.0,
+            "maximum_equivalent_full_cycles": 7000.0
+          },
+          "charge_c_rate_max": 1.0,
+          "charge_c_rate_min": 0.2,
+          "depth_of_discharge_max": 0.9,
+          "depth_of_discharge_min": 0.6,
+          "discharge_c_rate_max": 1.0,
+          "discharge_c_rate_min": 0.2,
+          "mean_soc_max": 0.6,
+          "mean_soc_min": 0.4,
+          "product_revision": "product-revision-001",
+          "temperature_max_c": 35.0,
+          "temperature_min_c": 15.0,
+          "training_maximum_absolute_throughput_ah": 100000.0,
+          "training_maximum_cycle_count": 500,
+          "training_maximum_elapsed_days": 730.0,
+          "training_maximum_equivalent_full_cycles": 400.0
+        },
+        "warnings": []
+      },
+      "calibration_approval_status": "approved",
+      "exposure_plan": {
+        "cell_temperature_c": 25.0,
+        "code_revision": "scenario123",
+        "cycles_per_operating_day": 0.5,
+        "depth_of_discharge": 0.8,
+        "horizon_years": 2,
+        "initial_absolute_throughput_ah": 0.0,
+        "initial_cycle_count": 0.0,
+        "initial_elapsed_days": 0.0,
+        "initial_equivalent_full_cycles": 0.0,
+        "max_charge_c_rate": 0.5,
+        "max_discharge_c_rate": 0.5,
+        "nominal_capacity_ah": 314.0,
+        "operating_availability_fraction": 0.9,
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "soc_window_max": 0.9,
+        "soc_window_min": 0.1,
+        "standard_scenario_version": "scenario-V1",
+        "study_start_date": "2024-01-01"
+      },
+      "result_version": "result-V1",
+      "schema_version": "V0.2",
+      "study_version": "study-V1"
+    }
+  },
+  "comparison_version": "comparison-V1",
+  "current": {
+    "artifact": {
+      "exposure": {
+        "assumptions": [
+          "constant cycles per operating day over each calendar interval",
+          "operating availability is applied uniformly to actual calendar days",
+          "one scheduled cycle contributes DoD equivalent full cycles",
+          "absolute Ah throughput uses two times nominal capacity times EFC",
+          "capacity fade, auxiliary energy, RTE, and dispatch constraints are not included"
+        ],
+        "calendar_basis": "actual_calendar_days",
+        "code_revision": "scenario123",
+        "conditions": {
+          "cell_temperature_c": 25.0,
+          "depth_of_discharge": 0.8,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "mean_soc": 0.5,
+          "product_revision": "product-revision-001"
+        },
+        "exposure_points": [
+          {
+            "absolute_throughput_ah": 0.0,
+            "calendar_date": "2024-01-01",
+            "cycle_count": 0.0,
+            "elapsed_days": 0.0,
+            "equivalent_full_cycles": 0.0,
+            "year": 0
+          },
+          {
+            "absolute_throughput_ah": 82745.28000000001,
+            "calendar_date": "2025-01-01",
+            "cycle_count": 164.70000000000002,
+            "elapsed_days": 366.0,
+            "equivalent_full_cycles": 131.76000000000002,
+            "year": 1
+          },
+          {
+            "absolute_throughput_ah": 165264.48,
+            "calendar_date": "2026-01-01",
+            "cycle_count": 328.95,
+            "elapsed_days": 731.0,
+            "equivalent_full_cycles": 263.16,
+            "year": 2
+          }
+        ],
+        "plan": {
+          "cell_temperature_c": 25.0,
+          "code_revision": "scenario123",
+          "cycles_per_operating_day": 0.5,
+          "depth_of_discharge": 0.8,
+          "horizon_years": 2,
+          "initial_absolute_throughput_ah": 0.0,
+          "initial_cycle_count": 0.0,
+          "initial_elapsed_days": 0.0,
+          "initial_equivalent_full_cycles": 0.0,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "nominal_capacity_ah": 314.0,
+          "operating_availability_fraction": 0.9,
+          "product_revision": "product-revision-001",
+          "schema_version": "V0.2",
+          "soc_window_max": 0.9,
+          "soc_window_min": 0.1,
+          "standard_scenario_version": "scenario-V1",
+          "study_start_date": "2024-01-01"
+        },
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "standard_scenario_version": "scenario-V1",
+        "throughput_basis": "nominal_cell_capacity"
+      },
+      "result_version": "result-V2",
+      "schema_version": "V0.2",
+      "soh_result": {
+        "all_points_within_validity_envelope": true,
+        "all_predictions_physically_valid": true,
+        "calibration_approval_status": "approved",
+        "calibration_id": "calibration-V2",
+        "calibration_model_version": "semi-empirical-V2",
+        "conditions": {
+          "cell_temperature_c": 25.0,
+          "depth_of_discharge": 0.8,
+          "max_charge_c_rate": 0.5,
+          "max_discharge_c_rate": 0.5,
+          "mean_soc": 0.5,
+          "product_revision": "product-revision-001"
+        },
+        "engineering_review_eligible": true,
+        "points": [
+          {
+            "absolute_throughput_ah": 0.0,
+            "calendar_date": "2024-01-01",
+            "cycle_count": 0.0,
+            "elapsed_days": 0.0,
+            "equivalent_full_cycles": 0.0,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 1.0,
+            "within_validity_envelope": true,
+            "year": 0
+          },
+          {
+            "absolute_throughput_ah": 82745.28000000001,
+            "calendar_date": "2025-01-01",
+            "cycle_count": 164.70000000000002,
+            "elapsed_days": 366.0,
+            "equivalent_full_cycles": 131.76000000000002,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 0.9837535645587262,
+            "within_validity_envelope": true,
+            "year": 1
+          },
+          {
+            "absolute_throughput_ah": 165264.48,
+            "calendar_date": "2026-01-01",
+            "cycle_count": 328.95,
+            "elapsed_days": 731.0,
+            "equivalent_full_cycles": 263.16,
+            "issues": [],
+            "physically_valid_prediction": true,
+            "predicted_capacity_fraction": 0.9742385538592763,
+            "within_validity_envelope": true,
+            "year": 2
+          }
+        ],
+        "product_revision": "product-revision-001",
+        "result_version": "result-V2",
+        "schema_version": "V0.2",
+        "standard_scenario_version": "scenario-V1",
+        "uncertainty_status": "not_quantified",
+        "warnings": [
+          "uncertainty is not quantified; this trajectory cannot directly support warranty output"
+        ],
+        "warranty_eligible": false
+      },
+      "study_version": "study-V2"
+    },
+    "manifest": {
+      "calibration_approval_status": "approved",
+      "calibration_code_revision": "calV2123",
+      "calibration_dataset_revision_ids": [
+        "dataset-revision-V2"
+      ],
+      "calibration_id": "calibration-V2",
+      "calibration_model_version": "semi-empirical-V2",
+      "engineering_review_eligible": true,
+      "files": [
+        {
+          "byte_count": 2612,
+          "content_type": "application/json",
+          "file_name": "study-request.json",
+          "sha256": "8e4587bee1451d9805285898568819ead4434b5980a413c6143f67bb7eb4a03e"
+        },
+        {
+          "byte_count": 2209,
+          "content_type": "application/json",
+          "file_name": "scenario-exposure.json",
+          "sha256": "9296901377676b32866f1de85400f453722b621a2c1bd607b56655641ff6602b"
+        },
+        {
+          "byte_count": 1946,
+          "content_type": "application/json",
+          "file_name": "soh-result.json",
+          "sha256": "282ee58f9695f990397520cd8ef22e13517c823c9e523fd824ab331e84a43a81"
+        }
+      ],
+      "result_version": "result-V2",
+      "scenario_code_revision": "scenario123",
+      "schema_version": "V0.2",
+      "standard_scenario_version": "scenario-V1",
+      "study_version": "study-V2",
+      "warranty_eligible": false
+    },
+    "request": {
+      "calibration": {
+        "approval_eligible": true,
+        "calibration_id": "calibration-V2",
+        "code_revision": "calV2123",
+        "dataset_revision_ids": [
+          "dataset-revision-V2"
+        ],
+        "fit_converged": true,
+        "identifiable": true,
+        "meets_validation_limit": true,
+        "metrics": {
+          "jacobian_condition_number": 100.0,
+          "jacobian_rank": 3,
+          "solver_cost": 0.001,
+          "solver_evaluations": 20,
+          "training_rmse_fraction": 0.001,
+          "validation_max_absolute_error_fraction": 0.003,
+          "validation_rmse_fraction": 0.002
+        },
+        "model_version": "semi-empirical-V2",
+        "observation_fits": [],
+        "parameters": {
+          "calendar_coefficient_per_sqrt_day": 0.0004,
+          "throughput_coefficient_per_ah_power": 1e-06,
+          "throughput_exponent": 0.8
+        },
+        "parameters_at_bounds": false,
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "validity_envelope": {
+          "approved_extrapolation_limits": {
+            "maximum_absolute_throughput_ah": 2000000.0,
+            "maximum_cycle_count": 8000,
+            "maximum_elapsed_days": 7300.0,
+            "maximum_equivalent_full_cycles": 7000.0
+          },
+          "charge_c_rate_max": 1.0,
+          "charge_c_rate_min": 0.2,
+          "depth_of_discharge_max": 0.9,
+          "depth_of_discharge_min": 0.6,
+          "discharge_c_rate_max": 1.0,
+          "discharge_c_rate_min": 0.2,
+          "mean_soc_max": 0.6,
+          "mean_soc_min": 0.4,
+          "product_revision": "product-revision-001",
+          "temperature_max_c": 35.0,
+          "temperature_min_c": 15.0,
+          "training_maximum_absolute_throughput_ah": 100000.0,
+          "training_maximum_cycle_count": 500,
+          "training_maximum_elapsed_days": 730.0,
+          "training_maximum_equivalent_full_cycles": 400.0
+        },
+        "warnings": []
+      },
+      "calibration_approval_status": "approved",
+      "exposure_plan": {
+        "cell_temperature_c": 25.0,
+        "code_revision": "scenario123",
+        "cycles_per_operating_day": 0.5,
+        "depth_of_discharge": 0.8,
+        "horizon_years": 2,
+        "initial_absolute_throughput_ah": 0.0,
+        "initial_cycle_count": 0.0,
+        "initial_elapsed_days": 0.0,
+        "initial_equivalent_full_cycles": 0.0,
+        "max_charge_c_rate": 0.5,
+        "max_discharge_c_rate": 0.5,
+        "nominal_capacity_ah": 314.0,
+        "operating_availability_fraction": 0.9,
+        "product_revision": "product-revision-001",
+        "schema_version": "V0.2",
+        "soc_window_max": 0.9,
+        "soc_window_min": 0.1,
+        "standard_scenario_version": "scenario-V1",
+        "study_start_date": "2024-01-01"
+      },
+      "result_version": "result-V2",
+      "schema_version": "V0.2",
+      "study_version": "study-V2"
+    }
+  },
+  "policy": {
+    "absolute_throughput_ah_tolerance": 1e-09,
+    "capacity_delta_tolerance_fraction": 1e-09,
+    "cycle_count_tolerance": 1e-09,
+    "elapsed_days_tolerance": 1e-09,
+    "equivalent_full_cycles_tolerance": 1e-09
+  },
+  "schema_version": "V0.2"
+}

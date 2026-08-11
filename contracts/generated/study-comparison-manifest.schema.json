@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "ArtifactFileRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "minimum": 0,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "content_type": {
+          "const": "application/json",
+          "default": "application/json",
+          "title": "Content Type",
+          "type": "string"
+        },
+        "file_name": {
+          "title": "File Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_name",
+        "sha256",
+        "byte_count"
+      ],
+      "title": "ArtifactFileRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "baseline_result_version": {
+      "title": "Baseline Result Version",
+      "type": "string"
+    },
+    "comparison_is_like_for_like": {
+      "const": true,
+      "default": true,
+      "title": "Comparison Is Like For Like",
+      "type": "boolean"
+    },
+    "comparison_version": {
+      "title": "Comparison Version",
+      "type": "string"
+    },
+    "current_result_version": {
+      "title": "Current Result Version",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/ArtifactFileRecord"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "warranty_amendment": {
+      "const": false,
+      "default": false,
+      "title": "Warranty Amendment",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "comparison_version",
+    "baseline_result_version",
+    "current_result_version",
+    "files"
+  ],
+  "title": "StudyComparisonManifest",
+  "type": "object"
+}
