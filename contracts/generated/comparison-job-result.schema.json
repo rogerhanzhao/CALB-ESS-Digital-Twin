@@ -1,0 +1,77 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifact Checksums",
+      "type": "object"
+    },
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "comparison_version": {
+      "title": "Comparison Version",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "engine": {
+      "const": "study-comparison",
+      "default": "study-comparison",
+      "title": "Engine",
+      "type": "string"
+    },
+    "final_capacity_delta_fraction": {
+      "title": "Final Capacity Delta Fraction",
+      "type": "number"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "maximum_absolute_capacity_delta_fraction": {
+      "minimum": 0,
+      "title": "Maximum Absolute Capacity Delta Fraction",
+      "type": "number"
+    },
+    "model_version": {
+      "const": "study-comparison-V0.2",
+      "default": "study-comparison-V0.2",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "code_revision",
+    "status",
+    "comparison_version",
+    "final_capacity_delta_fraction",
+    "maximum_absolute_capacity_delta_fraction",
+    "artifact_checksums"
+  ],
+  "title": "ComparisonJobResult",
+  "type": "object"
+}

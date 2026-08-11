@@ -48,3 +48,28 @@ calb-compare-standard-studies results\study-V1 results\study-V2 comparison.yaml 
 ```
 
 The output path is non-overwriting.
+
+## Worker adapter
+
+The comparison now has an independent job contract (`comparison-job` contract `1.0`). It is not
+encoded as a scenario run: the payload carries a job identity, authenticated owner, comparison
+engine/code revision, and one complete `StudyComparisonRequest` containing both verified study
+evidence sets and the explicit tolerance policy.
+
+The Python worker executes the existing like-for-like validator and writes an immutable bundle:
+
+```text
+<artifact-root>/<job-id>/study-comparison/
+  comparison-request.json
+  comparison-result.json
+  comparison-manifest.json
+```
+
+The manifest binds both result versions and checksums the request and result. A lease retry may
+reuse the directory only after the exact request, every file checksum, the recomputed comparison,
+and the manifest identities all agree. The worker result exposes only summary deltas and artifact
+checksums; the complete annual comparison remains in the evidence file.
+
+Hosted claim, upload, and completion endpoints are a separate transport slice. Until those
+endpoints accept the independent comparison contract, remote workers continue claiming only
+standard-study jobs; this local adapter does not imply hosted comparison availability.

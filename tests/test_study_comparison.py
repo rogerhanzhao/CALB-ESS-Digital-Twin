@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
+from uuid import uuid4
 
 import pytest
 import yaml
@@ -28,6 +32,8 @@ from calb_ess_digital_twin.study_comparison import (
     StudyVersionEvidence,
     TrustTransition,
     compare_standard_studies,
+    load_study_comparison_bundle,
+    write_study_comparison_bundle,
 )
 from calb_ess_digital_twin.study_comparison_cli import (
     load_bundle,
@@ -35,6 +41,9 @@ from calb_ess_digital_twin.study_comparison_cli import (
 from calb_ess_digital_twin.study_comparison_cli import (
     main as comparison_cli_main,
 )
+from compute.store import JobStore
+from compute.worker import execute_job_with_artifacts, run_once
+from contracts.models import ComparisonJobPayload
 
 
 def _calibration(
@@ -311,3 +320,60 @@ def test_cli_writes_non_overwriting_comparison_artifact(
 
     assert exit_code == 0
     assert '"comparison_is_like_for_like": true' in result_path.read_text(encoding="utf-8")
+
+
+def test_comparison_bundle_is_immutable_and_checksum_verified(tmp_path: Path) -> None:
+    request = _comparison_request(_evidence(tmp_path, "V1"), _evidence(tmp_path, "V2"))
+    directory = tmp_path / "comparison-bundle"
+
+    result, manifest = write_study_comparison_bundle(request, directory)
+    loaded_request, loaded_result, loaded_manifest = load_study_comparison_bundle(directory)
+
+    assert loaded_request == request
+    assert loaded_result == result
+    assert loaded_manifest == manifest
+    assert {item.file_name for item in manifest.files} == {
+        "comparison-request.json",
+        "comparison-result.json",
+    }
+    with pytest.raises(FileExistsError, match="immutable"):
+        write_study_comparison_bundle(request, directory)
+
+
+def test_worker_executes_comparison_as_independent_job(tmp_path: Path) -> None:
+    request = _comparison_request(
+        _evidence(tmp_path, "V1"),
+        _evidence(
+            tmp_path,
+            "V2",
+            calibration=_calibration("V2", calendar_coefficient=0.0004),
+        ),
+    )
+    payload = ComparisonJobPayload(
+        job_id=uuid4(),
+        user_id="alex",
+        code_revision="compare123",
+        study_comparison_request=request.model_dump(mode="json"),
+    )
+    store = JobStore(tmp_path / "comparison-jobs.sqlite3")
+    assert store.enqueue(str(payload.job_id), payload.model_dump(mode="json"))
+
+    assert run_once(store, "comparison-worker", artifact_root=tmp_path / "artifacts")
+
+    row = store.get(str(payload.job_id))
+    assert row is not None
+    assert row["status"] == "completed"
+    registrations = store.artifacts(str(payload.job_id))
+    assert {item["kind"] for item in registrations} == {
+        "comparison-manifest.json",
+        "comparison-request.json",
+        "comparison-result.json",
+    }
+    for item in registrations:
+        path = Path(url2pathname(urlparse(item["uri"]).path))
+        assert item["checksum_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+    repeated = execute_job_with_artifacts(payload, tmp_path / "artifacts")
+    assert repeated.result.artifact_checksums == {
+        item["kind"]: item["checksum_sha256"] for item in registrations
+    }

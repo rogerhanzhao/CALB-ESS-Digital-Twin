@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "description": "Independent comparison job; it does not pretend to be a scenario execution.",
+  "properties": {
+    "code_revision": {
+      "maxLength": 64,
+      "minLength": 7,
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "engine": {
+      "const": "study-comparison",
+      "default": "study-comparison",
+      "title": "Engine",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "model_version": {
+      "const": "study-comparison-V0.2",
+      "default": "study-comparison-V0.2",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "study_comparison_request": {
+      "additionalProperties": true,
+      "title": "Study Comparison Request",
+      "type": "object"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "title": "Submitted At",
+      "type": "string"
+    },
+    "user_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "user_id",
+    "code_revision",
+    "study_comparison_request"
+  ],
+  "title": "ComparisonJobPayload",
+  "type": "object"
+}

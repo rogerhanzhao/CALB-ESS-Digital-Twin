@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import socket
 import time
@@ -19,13 +20,26 @@ from calb_ess_digital_twin.standard_study import (
     load_standard_study_bundle,
     write_standard_study_bundle,
 )
-from calb_ess_digital_twin.study_comparison import StudyVersionEvidence
-from contracts.models import JobPayload, RunResult, Uncertainty
+from calb_ess_digital_twin.study_comparison import (
+    StudyComparisonRequest,
+    StudyVersionEvidence,
+    load_study_comparison_bundle,
+    write_study_comparison_bundle,
+)
+from contracts.models import (
+    ComparisonJobPayload,
+    ComparisonJobResult,
+    JobPayload,
+    RunResult,
+    Uncertainty,
+)
 
 from .remote_store import RemoteJobStore, RemoteTransportError
 from .store import ArtifactRegistration, JobStore
 
 WorkerStore = JobStore | RemoteJobStore
+WorkerPayload = JobPayload | ComparisonJobPayload
+WorkerResult = RunResult | ComparisonJobResult
 
 
 class LeaseLostError(RuntimeError):
@@ -34,7 +48,7 @@ class LeaseLostError(RuntimeError):
 
 @dataclass(frozen=True)
 class ExecutionOutcome:
-    result: RunResult
+    result: WorkerResult
     artifacts: tuple[ArtifactRegistration, ...] = ()
 
 
@@ -58,9 +72,11 @@ def execute_job(payload: JobPayload) -> RunResult:
     )
 
 
-def execute_job_with_artifacts(payload: JobPayload, artifact_root: Path) -> ExecutionOutcome:
+def execute_job_with_artifacts(payload: WorkerPayload, artifact_root: Path) -> ExecutionOutcome:
     """Execute one job and return result metadata plus immutable artifact registrations."""
 
+    if isinstance(payload, ComparisonJobPayload):
+        return _execute_comparison_job(payload, artifact_root)
     if payload.engine != "standard-study":
         return ExecutionOutcome(result=execute_job(payload))
     request = StandardStudyRequest.model_validate(payload.standard_study_request)
@@ -119,6 +135,47 @@ def execute_job_with_artifacts(payload: JobPayload, artifact_root: Path) -> Exec
     return ExecutionOutcome(result=result, artifacts=tuple(registrations))
 
 
+def _execute_comparison_job(
+    payload: ComparisonJobPayload, artifact_root: Path
+) -> ExecutionOutcome:
+    request = StudyComparisonRequest.model_validate(payload.study_comparison_request)
+    bundle_directory = artifact_root.resolve() / str(payload.job_id) / "study-comparison"
+    if bundle_directory.exists():
+        bundle_request, result, _ = load_study_comparison_bundle(bundle_directory)
+        if bundle_request != request:
+            raise ValueError("existing comparison bundle belongs to a different request")
+    else:
+        result, _ = write_study_comparison_bundle(request, bundle_directory)
+
+    registrations: list[ArtifactRegistration] = []
+    checksums: dict[str, str] = {}
+    for path in sorted(bundle_directory.iterdir()):
+        content = path.read_bytes()
+        checksum = hashlib.sha256(content).hexdigest()
+        checksums[path.name] = checksum
+        registrations.append(
+            ArtifactRegistration(
+                kind=path.name,
+                uri=path.resolve().as_uri(),
+                content_type="application/json",
+                size_bytes=len(content),
+                checksum_sha256=checksum,
+            )
+        )
+    job_result = ComparisonJobResult(
+        job_id=payload.job_id,
+        code_revision=payload.code_revision,
+        status="completed",
+        comparison_version=result.comparison_version,
+        final_capacity_delta_fraction=result.final_capacity_delta_fraction,
+        maximum_absolute_capacity_delta_fraction=(
+            result.maximum_absolute_capacity_delta_fraction
+        ),
+        artifact_checksums=checksums,
+    )
+    return ExecutionOutcome(result=job_result, artifacts=tuple(registrations))
+
+
 @contextmanager
 def keep_lease_alive(
     store: WorkerStore,
@@ -163,7 +220,12 @@ def run_once(
         return False
     job_id = row["id"]
     try:
-        payload = JobPayload.model_validate_json(row["payload"])
+        raw_payload = json.loads(row["payload"])
+        payload: WorkerPayload
+        if raw_payload.get("engine") == "study-comparison":
+            payload = ComparisonJobPayload.model_validate_json(row["payload"])
+        else:
+            payload = JobPayload.model_validate_json(row["payload"])
         interval = heartbeat_interval or max(lease_seconds / 3, 1)
         with keep_lease_alive(store, job_id, worker_id, lease_seconds, interval) as lease_lost:
             if artifact_root is not None:

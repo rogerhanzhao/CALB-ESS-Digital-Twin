@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import tempfile
 from datetime import date
 from enum import StrEnum
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .standard_study import (
+    ArtifactFileRecord,
     StandardStudyArtifact,
     StandardStudyManifest,
     StandardStudyRequest,
@@ -262,6 +267,18 @@ class StudyComparisonResult(BaseModel):
     points: list[StudyPointComparison]
 
 
+class StudyComparisonManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["V0.2"] = "V0.2"
+    comparison_version: str
+    baseline_result_version: str
+    current_result_version: str
+    comparison_is_like_for_like: Literal[True] = True
+    warranty_amendment: Literal[False] = False
+    files: tuple[ArtifactFileRecord, ...]
+
+
 def compare_standard_studies(request: StudyComparisonRequest) -> StudyComparisonResult:
     """Compare capacity and trust state after the request proves exposure equivalence."""
 
@@ -350,6 +367,88 @@ def compare_standard_studies(request: StudyComparisonRequest) -> StudyComparison
         ),
         points=points,
     )
+
+
+def write_study_comparison_bundle(
+    request: StudyComparisonRequest, output_directory: Path
+) -> tuple[StudyComparisonResult, StudyComparisonManifest]:
+    """Atomically write a non-overwriting, checksum-addressed comparison bundle."""
+
+    if output_directory.exists():
+        raise FileExistsError("output directory already exists; comparison versions are immutable")
+    result = compare_standard_studies(request)
+    output_directory.parent.mkdir(parents=True, exist_ok=True)
+    payloads = {
+        "comparison-request.json": _json_bytes(request),
+        "comparison-result.json": _json_bytes(result),
+    }
+    manifest = StudyComparisonManifest(
+        comparison_version=result.comparison_version,
+        baseline_result_version=result.baseline_result_version,
+        current_result_version=result.current_result_version,
+        files=tuple(
+            ArtifactFileRecord(
+                file_name=name,
+                sha256=hashlib.sha256(content).hexdigest(),
+                byte_count=len(content),
+            )
+            for name, content in payloads.items()
+        ),
+    )
+    payloads["comparison-manifest.json"] = _json_bytes(manifest)
+    with tempfile.TemporaryDirectory(
+        prefix=f".{output_directory.name}-", dir=output_directory.parent
+    ) as temporary_name:
+        temporary = Path(temporary_name)
+        for name, content in payloads.items():
+            (temporary / name).write_bytes(content)
+        temporary.replace(output_directory)
+    return result, manifest
+
+
+def load_study_comparison_bundle(
+    directory: Path,
+) -> tuple[StudyComparisonRequest, StudyComparisonResult, StudyComparisonManifest]:
+    expected = {
+        "comparison-request.json",
+        "comparison-result.json",
+        "comparison-manifest.json",
+    }
+    actual = {path.name for path in directory.iterdir() if path.is_file()}
+    if actual != expected:
+        raise ValueError("comparison bundle does not contain the exact required files")
+    manifest = StudyComparisonManifest.model_validate_json(
+        (directory / "comparison-manifest.json").read_text(encoding="utf-8")
+    )
+    records = {record.file_name: record for record in manifest.files}
+    if set(records) != expected - {"comparison-manifest.json"}:
+        raise ValueError("comparison manifest does not contain the exact evidence files")
+    payloads: dict[str, bytes] = {}
+    for name, record in records.items():
+        content = (directory / name).read_bytes()
+        if len(content) != record.byte_count:
+            raise ValueError(f"comparison bundle byte count mismatch: {name}")
+        if hashlib.sha256(content).hexdigest() != record.sha256:
+            raise ValueError(f"comparison bundle checksum mismatch: {name}")
+        payloads[name] = content
+    request = StudyComparisonRequest.model_validate_json(payloads["comparison-request.json"])
+    result = StudyComparisonResult.model_validate_json(payloads["comparison-result.json"])
+    if compare_standard_studies(request) != result:
+        raise ValueError("comparison result does not match its immutable request")
+    if (
+        manifest.comparison_version != result.comparison_version
+        or manifest.baseline_result_version != result.baseline_result_version
+        or manifest.current_result_version != result.current_result_version
+    ):
+        raise ValueError("comparison manifest identity does not match result")
+    return request, result, manifest
+
+
+def _json_bytes(model: BaseModel) -> bytes:
+    return (
+        json.dumps(model.model_dump(mode="json"), indent=2, ensure_ascii=False, sort_keys=True)
+        + "\n"
+    ).encode("utf-8")
 
 
 def _direction(delta: float, tolerance: float) -> CapacityDirection:

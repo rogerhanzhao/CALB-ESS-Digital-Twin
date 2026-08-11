@@ -34,6 +34,11 @@ CPython scientific stack is CPU-bound, long-running, and needs local scratch —
 plane is restricted to authentication, input validation, durable job records, progress
 reporting, and result serving. It performs no numerical work of any kind.
 
+Standard-study comparisons follow the same boundary. The Web plane assembles and authorizes two
+immutable evidence sets, but capacity deltas, like-for-like checks, and trust-state transitions are
+computed only by the Python comparison worker. A comparison has its own job contract and does not
+masquerade as a scenario execution.
+
 The compute plane is containerised Python. Workers claim queued jobs under a lease, emit
 heartbeats, checkpoint intermediate state, and upload result artifacts. A worker restart
 resumes from its latest checkpoint or safely retries an idempotent job. Capacity tiers, quotas,

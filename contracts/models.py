@@ -134,3 +134,30 @@ class RunResult(StrictModel):
     warnings: list[str] = Field(default_factory=list)
     artifact_checksums: dict[str, str] = Field(default_factory=dict)
     completed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ComparisonJobPayload(StrictModel):
+    """Independent comparison job; it does not pretend to be a scenario execution."""
+
+    contract_version: Literal["1.0"] = "1.0"
+    job_id: UUID
+    user_id: str = Field(min_length=1, max_length=200)
+    engine: Literal["study-comparison"] = "study-comparison"
+    model_version: Literal["study-comparison-V0.2"] = "study-comparison-V0.2"
+    code_revision: str = Field(min_length=7, max_length=64)
+    study_comparison_request: dict[str, Any]
+    submitted_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ComparisonJobResult(StrictModel):
+    contract_version: Literal["1.0"] = "1.0"
+    job_id: UUID
+    engine: Literal["study-comparison"] = "study-comparison"
+    model_version: Literal["study-comparison-V0.2"] = "study-comparison-V0.2"
+    code_revision: str
+    status: Literal["completed", "failed", "cancelled"]
+    comparison_version: str
+    final_capacity_delta_fraction: float
+    maximum_absolute_capacity_delta_fraction: float = Field(ge=0)
+    artifact_checksums: dict[str, str]
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
