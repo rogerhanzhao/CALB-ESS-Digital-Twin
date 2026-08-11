@@ -42,6 +42,7 @@ const RUN_ENGINES: Record<RunEngine, true> = {
   stub: true,
   "pybamm-spme": true,
   "semi-empirical": true,
+  "standard-study": true,
 };
 
 export function isRunEngine(value: string): value is RunEngine {

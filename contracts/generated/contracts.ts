@@ -19,10 +19,11 @@ export interface JobPayload {
   job_id: string;
   scenario_id: string;
   user_id: string;
-  engine: "demo" | "stub" | "pybamm-spme" | "semi-empirical";
+  engine: "demo" | "stub" | "pybamm-spme" | "semi-empirical" | "standard-study";
   model_version: string;
   code_revision: string;
-  scenario: ScenarioInput;
+  scenario?: ScenarioInput | null;
+  standard_study_request?: Record<string, unknown> | null;
   submitted_at?: string;
 }
 
@@ -43,7 +44,7 @@ export interface Uncertainty {
 export interface RunResult {
   contract_version?: string;
   job_id: string;
-  engine: "demo" | "stub" | "pybamm-spme" | "semi-empirical";
+  engine: "demo" | "stub" | "pybamm-spme" | "semi-empirical" | "standard-study";
   model_version: string;
   code_revision: string;
   status: "completed" | "failed" | "cancelled";

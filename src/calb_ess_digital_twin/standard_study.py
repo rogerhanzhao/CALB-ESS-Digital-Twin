@@ -138,6 +138,47 @@ def write_standard_study_bundle(
     return artifact, manifest
 
 
+def load_standard_study_bundle(
+    directory: Path,
+) -> tuple[StandardStudyRequest, StandardStudyArtifact, StandardStudyManifest]:
+    """Load one exact, checksum-verified bundle without trusting directory contents."""
+
+    expected_directory_files = {
+        "study-request.json",
+        "scenario-exposure.json",
+        "soh-result.json",
+        "manifest.json",
+    }
+    actual_directory_files = {path.name for path in directory.iterdir() if path.is_file()}
+    if actual_directory_files != expected_directory_files:
+        raise ValueError("study bundle does not contain the exact required files")
+    manifest = StandardStudyManifest.model_validate_json(
+        (directory / "manifest.json").read_text(encoding="utf-8")
+    )
+    expected_evidence_files = expected_directory_files - {"manifest.json"}
+    records = {record.file_name: record for record in manifest.files}
+    if set(records) != expected_evidence_files:
+        raise ValueError("study manifest does not contain the exact required evidence files")
+    payloads: dict[str, bytes] = {}
+    for name, record in records.items():
+        content = (directory / name).read_bytes()
+        if len(content) != record.byte_count:
+            raise ValueError(f"study bundle byte count mismatch: {name}")
+        if hashlib.sha256(content).hexdigest() != record.sha256:
+            raise ValueError(f"study bundle checksum mismatch: {name}")
+        payloads[name] = content
+    request = StandardStudyRequest.model_validate_json(payloads["study-request.json"])
+    exposure = StandardExposureArtifact.model_validate_json(payloads["scenario-exposure.json"])
+    soh_result = ExtrapolationResult.model_validate_json(payloads["soh-result.json"])
+    artifact = StandardStudyArtifact(
+        study_version=manifest.study_version,
+        result_version=manifest.result_version,
+        exposure=exposure,
+        soh_result=soh_result,
+    )
+    return request, artifact, manifest
+
+
 def _json_bytes(model: BaseModel) -> bytes:
     return (
         json.dumps(

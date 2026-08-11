@@ -8,7 +8,7 @@ independently: changing one does not force a cosmetic version bump in the other.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -53,18 +53,31 @@ class ScenarioInput(StrictModel):
 
 
 class JobPayload(StrictModel):
-    contract_version: Literal["2.0"] = "2.0"
+    contract_version: Literal["3.0"] = "3.0"
     job_id: UUID
     scenario_id: UUID
     user_id: str = Field(min_length=1, max_length=200)
-    engine: Literal["demo", "stub", "pybamm-spme", "semi-empirical"]
+    engine: Literal[
+        "demo", "stub", "pybamm-spme", "semi-empirical", "standard-study"
+    ]
     model_version: str = Field(min_length=1)
     code_revision: str = Field(min_length=7, max_length=64)
-    scenario: ScenarioInput
+    scenario: ScenarioInput | None = None
+    standard_study_request: dict[str, Any] | None = None
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
     def numerical_engines_require_parameters(self) -> JobPayload:
+        if self.engine == "standard-study":
+            if self.scenario is not None:
+                raise ValueError("standard-study jobs must use only their versioned study request")
+            if self.standard_study_request is None:
+                raise ValueError("standard-study jobs require standard_study_request")
+            return self
+        if self.scenario is None:
+            raise ValueError("scenario is required for non-standard-study jobs")
+        if self.standard_study_request is not None:
+            raise ValueError("standard_study_request is only valid for standard-study jobs")
         if (
             self.engine in {"pybamm-spme", "semi-empirical"}
             and self.scenario.cell_param_set_version is None
@@ -105,9 +118,11 @@ class Uncertainty(StrictModel):
 
 
 class RunResult(StrictModel):
-    contract_version: Literal["1.0"] = "1.0"
+    contract_version: Literal["2.0"] = "2.0"
     job_id: UUID
-    engine: Literal["demo", "stub", "pybamm-spme", "semi-empirical"]
+    engine: Literal[
+        "demo", "stub", "pybamm-spme", "semi-empirical", "standard-study"
+    ]
     model_version: str
     code_revision: str
     status: Literal["completed", "failed", "cancelled"]

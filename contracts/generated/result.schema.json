@@ -111,8 +111,8 @@
       "type": "string"
     },
     "contract_version": {
-      "const": "1.0",
-      "default": "1.0",
+      "const": "2.0",
+      "default": "2.0",
       "title": "Contract Version",
       "type": "string"
     },
@@ -135,7 +135,8 @@
         "demo",
         "stub",
         "pybamm-spme",
-        "semi-empirical"
+        "semi-empirical",
+        "standard-study"
       ],
       "title": "Engine",
       "type": "string"

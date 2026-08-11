@@ -29,6 +29,9 @@ GPU is not required for standard PyBaMM solvers. Add GPU nodes only for validate
 - Separate quick engineering models from high-fidelity electrochemical jobs with different queues.
 - Enforce per-user concurrency and total CPU-hour quotas.
 - Persist heartbeat, attempt count, checkpoint URI, model version, input-data version, and error details.
+- Store standard-study bundles outside the web process. The V0.2 local adapter uses four small JSON
+  files per study plus SQLite metadata; capacity is driven mainly by retained source test data and
+  future PyBaMM traces, not by the annual SOH summary bundle.
 - Retain structured summaries in the database and large traces/reports in object storage.
 - Alert when queue wait exceeds 10 minutes, worker heartbeat exceeds 60 seconds, or disk usage exceeds 75%.
 

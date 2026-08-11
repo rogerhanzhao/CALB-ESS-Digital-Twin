@@ -38,6 +38,26 @@ def test_only_lease_owner_can_complete(tmp_path) -> None:
     assert store.complete("job-1", "worker-a", {"status": "completed"})
 
 
+def test_result_and_artifact_registration_share_the_lease_owner_transaction(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    store.enqueue("job-1", {"job_id": "job-1"})
+    assert store.claim("worker-a") is not None
+    artifact = {
+        "kind": "manifest.json",
+        "uri": "file:///artifact/manifest.json",
+        "content_type": "application/json",
+        "size_bytes": 12,
+        "checksum_sha256": "a" * 64,
+    }
+
+    assert not store.complete(
+        "job-1", "worker-b", {"status": "completed"}, (artifact,)
+    )
+    assert store.artifacts("job-1") == []
+    assert store.complete("job-1", "worker-a", {"status": "completed"}, (artifact,))
+    assert store.artifacts("job-1")[0]["checksum_sha256"] == "a" * 64
+
+
 def test_worker_completes_a_valid_stub_job(tmp_path) -> None:
     store = JobStore(tmp_path / "jobs.sqlite3")
     job_id = uuid4()

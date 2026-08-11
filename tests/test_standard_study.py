@@ -19,6 +19,7 @@ from calb_ess_digital_twin.soh_engine import (
 from calb_ess_digital_twin.soh_engine.calibration import FitMetrics
 from calb_ess_digital_twin.standard_study import (
     StandardStudyRequest,
+    load_standard_study_bundle,
     write_standard_study_bundle,
 )
 from calb_ess_digital_twin.standard_study_cli import main as standard_study_cli_main
@@ -130,6 +131,15 @@ def test_writes_complete_checksum_verified_non_overwriting_bundle(tmp_path: Path
         assert record.sha256 == hashlib.sha256(content).hexdigest()
     with pytest.raises(FileExistsError, match="immutable"):
         write_standard_study_bundle(_request(), output)
+
+
+def test_loader_rejects_unregistered_files_in_immutable_bundle(tmp_path: Path) -> None:
+    output = tmp_path / "study-V1"
+    write_standard_study_bundle(_request(), output)
+    (output / "unregistered.json").write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="exact required files"):
+        load_standard_study_bundle(output)
 
 
 def test_new_result_version_creates_distinct_request_evidence(tmp_path: Path) -> None:

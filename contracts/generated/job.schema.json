@@ -101,8 +101,8 @@
       "type": "string"
     },
     "contract_version": {
-      "const": "2.0",
-      "default": "2.0",
+      "const": "3.0",
+      "default": "3.0",
       "title": "Contract Version",
       "type": "string"
     },
@@ -111,7 +111,8 @@
         "demo",
         "stub",
         "pybamm-spme",
-        "semi-empirical"
+        "semi-empirical",
+        "standard-study"
       ],
       "title": "Engine",
       "type": "string"
@@ -127,12 +128,33 @@
       "type": "string"
     },
     "scenario": {
-      "$ref": "#/$defs/ScenarioInput"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScenarioInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "scenario_id": {
       "format": "uuid",
       "title": "Scenario Id",
       "type": "string"
+    },
+    "standard_study_request": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Standard Study Request"
     },
     "submitted_at": {
       "format": "date-time",
@@ -152,8 +174,7 @@
     "user_id",
     "engine",
     "model_version",
-    "code_revision",
-    "scenario"
+    "code_revision"
   ],
   "title": "JobPayload",
   "type": "object"

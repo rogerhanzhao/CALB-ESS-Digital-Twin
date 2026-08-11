@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from calb_ess_digital_twin.standard_study import StandardStudyRequest
 from contracts.models import JobPayload, RunResult
 
 
@@ -62,7 +63,11 @@ def _typescript(models: list[type[JobPayload | RunResult]]) -> str:
 
 def export(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    schemas = {"job.schema.json": JobPayload, "result.schema.json": RunResult}
+    schemas = {
+        "job.schema.json": JobPayload,
+        "result.schema.json": RunResult,
+        "standard-study-request.schema.json": StandardStudyRequest,
+    }
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"
         (output_dir / filename).write_text(content, encoding="utf-8", newline="\n")

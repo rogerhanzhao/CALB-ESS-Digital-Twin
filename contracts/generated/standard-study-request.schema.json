@@ -1,0 +1,524 @@
+{
+  "$defs": {
+    "CalibrationApprovalStatus": {
+      "enum": [
+        "draft",
+        "under_review",
+        "approved",
+        "rejected",
+        "superseded"
+      ],
+      "title": "CalibrationApprovalStatus",
+      "type": "string"
+    },
+    "CalibrationResult": {
+      "additionalProperties": false,
+      "description": "Draft calibration artifact; ``approval_eligible`` is not approval.",
+      "properties": {
+        "approval_eligible": {
+          "title": "Approval Eligible",
+          "type": "boolean"
+        },
+        "calibration_id": {
+          "title": "Calibration Id",
+          "type": "string"
+        },
+        "code_revision": {
+          "title": "Code Revision",
+          "type": "string"
+        },
+        "dataset_revision_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dataset Revision Ids",
+          "type": "array"
+        },
+        "fit_converged": {
+          "title": "Fit Converged",
+          "type": "boolean"
+        },
+        "identifiable": {
+          "title": "Identifiable",
+          "type": "boolean"
+        },
+        "meets_validation_limit": {
+          "title": "Meets Validation Limit",
+          "type": "boolean"
+        },
+        "metrics": {
+          "$ref": "#/$defs/FitMetrics"
+        },
+        "model_version": {
+          "title": "Model Version",
+          "type": "string"
+        },
+        "observation_fits": {
+          "items": {
+            "$ref": "#/$defs/ObservationFit"
+          },
+          "title": "Observation Fits",
+          "type": "array"
+        },
+        "parameters": {
+          "$ref": "#/$defs/SemiEmpiricalParameters"
+        },
+        "parameters_at_bounds": {
+          "title": "Parameters At Bounds",
+          "type": "boolean"
+        },
+        "product_revision": {
+          "title": "Product Revision",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "V0.2",
+          "default": "V0.2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "validity_envelope": {
+          "$ref": "#/$defs/CalibrationValidityEnvelope"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "calibration_id",
+        "model_version",
+        "code_revision",
+        "product_revision",
+        "dataset_revision_ids",
+        "parameters",
+        "metrics",
+        "validity_envelope",
+        "fit_converged",
+        "identifiable",
+        "parameters_at_bounds",
+        "meets_validation_limit",
+        "approval_eligible",
+        "warnings",
+        "observation_fits"
+      ],
+      "title": "CalibrationResult",
+      "type": "object"
+    },
+    "CalibrationValidityEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_extrapolation_limits": {
+          "$ref": "#/$defs/ExtrapolationLimits"
+        },
+        "charge_c_rate_max": {
+          "title": "Charge C Rate Max",
+          "type": "number"
+        },
+        "charge_c_rate_min": {
+          "title": "Charge C Rate Min",
+          "type": "number"
+        },
+        "depth_of_discharge_max": {
+          "title": "Depth Of Discharge Max",
+          "type": "number"
+        },
+        "depth_of_discharge_min": {
+          "title": "Depth Of Discharge Min",
+          "type": "number"
+        },
+        "discharge_c_rate_max": {
+          "title": "Discharge C Rate Max",
+          "type": "number"
+        },
+        "discharge_c_rate_min": {
+          "title": "Discharge C Rate Min",
+          "type": "number"
+        },
+        "mean_soc_max": {
+          "title": "Mean Soc Max",
+          "type": "number"
+        },
+        "mean_soc_min": {
+          "title": "Mean Soc Min",
+          "type": "number"
+        },
+        "product_revision": {
+          "title": "Product Revision",
+          "type": "string"
+        },
+        "temperature_max_c": {
+          "title": "Temperature Max C",
+          "type": "number"
+        },
+        "temperature_min_c": {
+          "title": "Temperature Min C",
+          "type": "number"
+        },
+        "training_maximum_absolute_throughput_ah": {
+          "title": "Training Maximum Absolute Throughput Ah",
+          "type": "number"
+        },
+        "training_maximum_cycle_count": {
+          "title": "Training Maximum Cycle Count",
+          "type": "integer"
+        },
+        "training_maximum_elapsed_days": {
+          "title": "Training Maximum Elapsed Days",
+          "type": "number"
+        },
+        "training_maximum_equivalent_full_cycles": {
+          "title": "Training Maximum Equivalent Full Cycles",
+          "type": "number"
+        }
+      },
+      "required": [
+        "product_revision",
+        "temperature_min_c",
+        "temperature_max_c",
+        "depth_of_discharge_min",
+        "depth_of_discharge_max",
+        "mean_soc_min",
+        "mean_soc_max",
+        "charge_c_rate_min",
+        "charge_c_rate_max",
+        "discharge_c_rate_min",
+        "discharge_c_rate_max",
+        "training_maximum_elapsed_days",
+        "training_maximum_cycle_count",
+        "training_maximum_equivalent_full_cycles",
+        "training_maximum_absolute_throughput_ah",
+        "approved_extrapolation_limits"
+      ],
+      "title": "CalibrationValidityEnvelope",
+      "type": "object"
+    },
+    "ExtrapolationLimits": {
+      "additionalProperties": false,
+      "description": "Method-approved horizon; separate from the observed training exposure.",
+      "properties": {
+        "maximum_absolute_throughput_ah": {
+          "minimum": 0,
+          "title": "Maximum Absolute Throughput Ah",
+          "type": "number"
+        },
+        "maximum_cycle_count": {
+          "minimum": 0,
+          "title": "Maximum Cycle Count",
+          "type": "integer"
+        },
+        "maximum_elapsed_days": {
+          "minimum": 0,
+          "title": "Maximum Elapsed Days",
+          "type": "number"
+        },
+        "maximum_equivalent_full_cycles": {
+          "minimum": 0,
+          "title": "Maximum Equivalent Full Cycles",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maximum_elapsed_days",
+        "maximum_cycle_count",
+        "maximum_equivalent_full_cycles",
+        "maximum_absolute_throughput_ah"
+      ],
+      "title": "ExtrapolationLimits",
+      "type": "object"
+    },
+    "FitMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "jacobian_condition_number": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jacobian Condition Number"
+        },
+        "jacobian_rank": {
+          "minimum": 0,
+          "title": "Jacobian Rank",
+          "type": "integer"
+        },
+        "solver_cost": {
+          "minimum": 0,
+          "title": "Solver Cost",
+          "type": "number"
+        },
+        "solver_evaluations": {
+          "minimum": 0,
+          "title": "Solver Evaluations",
+          "type": "integer"
+        },
+        "training_rmse_fraction": {
+          "minimum": 0,
+          "title": "Training Rmse Fraction",
+          "type": "number"
+        },
+        "validation_max_absolute_error_fraction": {
+          "minimum": 0,
+          "title": "Validation Max Absolute Error Fraction",
+          "type": "number"
+        },
+        "validation_rmse_fraction": {
+          "minimum": 0,
+          "title": "Validation Rmse Fraction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "training_rmse_fraction",
+        "validation_rmse_fraction",
+        "validation_max_absolute_error_fraction",
+        "jacobian_rank",
+        "solver_cost",
+        "solver_evaluations"
+      ],
+      "title": "FitMetrics",
+      "type": "object"
+    },
+    "ObservationFit": {
+      "additionalProperties": false,
+      "properties": {
+        "measured_capacity_fraction": {
+          "title": "Measured Capacity Fraction",
+          "type": "number"
+        },
+        "observation_id": {
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "predicted_capacity_fraction": {
+          "title": "Predicted Capacity Fraction",
+          "type": "number"
+        },
+        "residual_fraction": {
+          "title": "Residual Fraction",
+          "type": "number"
+        },
+        "split": {
+          "$ref": "#/$defs/SplitRole"
+        }
+      },
+      "required": [
+        "observation_id",
+        "split",
+        "measured_capacity_fraction",
+        "predicted_capacity_fraction",
+        "residual_fraction"
+      ],
+      "title": "ObservationFit",
+      "type": "object"
+    },
+    "SemiEmpiricalParameters": {
+      "additionalProperties": false,
+      "properties": {
+        "calendar_coefficient_per_sqrt_day": {
+          "minimum": 0,
+          "title": "Calendar Coefficient Per Sqrt Day",
+          "type": "number"
+        },
+        "throughput_coefficient_per_ah_power": {
+          "minimum": 0,
+          "title": "Throughput Coefficient Per Ah Power",
+          "type": "number"
+        },
+        "throughput_exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Throughput Exponent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "calendar_coefficient_per_sqrt_day",
+        "throughput_coefficient_per_ah_power",
+        "throughput_exponent"
+      ],
+      "title": "SemiEmpiricalParameters",
+      "type": "object"
+    },
+    "SplitRole": {
+      "enum": [
+        "train",
+        "validation"
+      ],
+      "title": "SplitRole",
+      "type": "string"
+    },
+    "StandardExposurePlan": {
+      "additionalProperties": false,
+      "description": "Versioned constant-duty plan for one standard engineering scenario.",
+      "properties": {
+        "cell_temperature_c": {
+          "title": "Cell Temperature C",
+          "type": "number"
+        },
+        "code_revision": {
+          "minLength": 7,
+          "title": "Code Revision",
+          "type": "string"
+        },
+        "cycles_per_operating_day": {
+          "minimum": 0,
+          "title": "Cycles Per Operating Day",
+          "type": "number"
+        },
+        "depth_of_discharge": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Depth Of Discharge",
+          "type": "number"
+        },
+        "horizon_years": {
+          "minimum": 1,
+          "title": "Horizon Years",
+          "type": "integer"
+        },
+        "initial_absolute_throughput_ah": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Initial Absolute Throughput Ah",
+          "type": "number"
+        },
+        "initial_cycle_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Initial Cycle Count",
+          "type": "number"
+        },
+        "initial_elapsed_days": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Initial Elapsed Days",
+          "type": "number"
+        },
+        "initial_equivalent_full_cycles": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Initial Equivalent Full Cycles",
+          "type": "number"
+        },
+        "max_charge_c_rate": {
+          "minimum": 0,
+          "title": "Max Charge C Rate",
+          "type": "number"
+        },
+        "max_discharge_c_rate": {
+          "minimum": 0,
+          "title": "Max Discharge C Rate",
+          "type": "number"
+        },
+        "nominal_capacity_ah": {
+          "exclusiveMinimum": 0,
+          "title": "Nominal Capacity Ah",
+          "type": "number"
+        },
+        "operating_availability_fraction": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Operating Availability Fraction",
+          "type": "number"
+        },
+        "product_revision": {
+          "minLength": 1,
+          "title": "Product Revision",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "V0.2",
+          "default": "V0.2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "soc_window_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Soc Window Max",
+          "type": "number"
+        },
+        "soc_window_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Soc Window Min",
+          "type": "number"
+        },
+        "standard_scenario_version": {
+          "minLength": 1,
+          "title": "Standard Scenario Version",
+          "type": "string"
+        },
+        "study_start_date": {
+          "format": "date",
+          "title": "Study Start Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "standard_scenario_version",
+        "code_revision",
+        "product_revision",
+        "study_start_date",
+        "horizon_years",
+        "nominal_capacity_ah",
+        "cycles_per_operating_day",
+        "operating_availability_fraction",
+        "soc_window_min",
+        "soc_window_max",
+        "depth_of_discharge",
+        "cell_temperature_c",
+        "max_charge_c_rate",
+        "max_discharge_c_rate"
+      ],
+      "title": "StandardExposurePlan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "calibration": {
+      "$ref": "#/$defs/CalibrationResult"
+    },
+    "calibration_approval_status": {
+      "$ref": "#/$defs/CalibrationApprovalStatus"
+    },
+    "exposure_plan": {
+      "$ref": "#/$defs/StandardExposurePlan"
+    },
+    "result_version": {
+      "minLength": 1,
+      "title": "Result Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "study_version": {
+      "minLength": 1,
+      "title": "Study Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "study_version",
+    "result_version",
+    "exposure_plan",
+    "calibration",
+    "calibration_approval_status"
+  ],
+  "title": "StandardStudyRequest",
+  "type": "object"
+}

@@ -32,17 +32,38 @@ def valid_job() -> JobPayload:
 
 
 def test_contract_rejects_explicit_null() -> None:
-    data = valid_job().model_dump(mode="json")
+    data = valid_job().model_dump()
     data["scenario"]["horizon_years"] = None
     with pytest.raises(ValidationError):
         JobPayload.model_validate(data)
 
 
-def test_job_contract_version_identifies_the_soc_window_shape() -> None:
-    assert valid_job().contract_version == "2.0"
+def test_job_contract_version_identifies_the_standard_study_shape() -> None:
+    assert valid_job().contract_version == "3.0"
     data = valid_job().model_dump(mode="json")
     data["contract_version"] = "1.0"
     with pytest.raises(ValidationError):
+        JobPayload.model_validate(data)
+
+
+def test_standard_study_job_has_one_unambiguous_input_surface() -> None:
+    data = valid_job().model_dump()
+    data.update(
+        engine="standard-study",
+        scenario=None,
+        standard_study_request={"schema_version": "V0.2"},
+    )
+    assert JobPayload.model_validate(data).standard_study_request is not None
+
+    data["scenario"] = valid_job().scenario.model_dump()
+    with pytest.raises(ValidationError, match="only their versioned study request"):
+        JobPayload.model_validate(data)
+
+
+def test_non_standard_job_rejects_standard_study_request() -> None:
+    data = valid_job().model_dump()
+    data["standard_study_request"] = {"schema_version": "V0.2"}
+    with pytest.raises(ValidationError, match="only valid for standard-study"):
         JobPayload.model_validate(data)
 
 
