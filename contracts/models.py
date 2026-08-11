@@ -20,6 +20,8 @@ class ScenarioInput(StrictModel):
     horizon_years: int = Field(ge=1, le=25)
     cycles_per_day: float = Field(ge=0, le=3)
     depth_of_discharge: float = Field(ge=0, le=1)
+    soc_window_min: float = Field(ge=0, le=1)
+    soc_window_max: float = Field(ge=0, le=1)
     ambient_temperature_c: float = Field(ge=-20, le=60)
     initial_soc: float = Field(ge=0, le=1)
     end_of_life_fraction: float = Field(ge=0.5, le=0.95)
@@ -28,6 +30,12 @@ class ScenarioInput(StrictModel):
     def cycling_requires_positive_depth(self) -> ScenarioInput:
         if self.cycles_per_day > 0 and self.depth_of_discharge == 0:
             raise ValueError("depth_of_discharge must be positive when cycles_per_day is positive")
+        if self.soc_window_min >= self.soc_window_max:
+            raise ValueError("soc_window_min must be strictly below soc_window_max")
+        if self.depth_of_discharge > self.soc_window_max - self.soc_window_min + 1e-9:
+            raise ValueError("depth_of_discharge cannot exceed the declared SOC window")
+        if not self.soc_window_min - 1e-9 <= self.initial_soc <= self.soc_window_max + 1e-9:
+            raise ValueError("initial_soc must lie within the declared SOC window")
         return self
 
 

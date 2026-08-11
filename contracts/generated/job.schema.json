@@ -63,6 +63,18 @@
           "minLength": 1,
           "title": "Name",
           "type": "string"
+        },
+        "soc_window_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Soc Window Max",
+          "type": "number"
+        },
+        "soc_window_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Soc Window Min",
+          "type": "number"
         }
       },
       "required": [
@@ -70,6 +82,8 @@
         "horizon_years",
         "cycles_per_day",
         "depth_of_discharge",
+        "soc_window_min",
+        "soc_window_max",
         "ambient_temperature_c",
         "initial_soc",
         "end_of_life_fraction"
