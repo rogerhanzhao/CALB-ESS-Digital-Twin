@@ -18,6 +18,8 @@ def test_prada2013_spme_reference_discharge() -> None:
             horizon_years=1,
             cycles_per_day=1.0,
             depth_of_discharge=0.9,
+            soc_window_min=0.1,
+            soc_window_max=1.0,
             ambient_temperature_c=25.0,
             initial_soc=1.0,
             end_of_life_fraction=0.8,

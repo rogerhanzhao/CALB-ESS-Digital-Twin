@@ -7,6 +7,8 @@ export interface ScenarioInput {
   horizon_years: number;
   cycles_per_day: number;
   depth_of_discharge: number;
+  soc_window_min: number;
+  soc_window_max: number;
   ambient_temperature_c: number;
   initial_soc: number;
   end_of_life_fraction: number;

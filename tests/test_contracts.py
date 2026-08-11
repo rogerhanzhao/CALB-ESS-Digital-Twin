@@ -22,6 +22,8 @@ def valid_job() -> JobPayload:
             horizon_years=20,
             cycles_per_day=1.0,
             depth_of_discharge=0.9,
+            soc_window_min=0.05,
+            soc_window_max=0.95,
             ambient_temperature_c=25.0,
             initial_soc=0.5,
             end_of_life_fraction=0.8,
@@ -32,6 +34,14 @@ def valid_job() -> JobPayload:
 def test_contract_rejects_explicit_null() -> None:
     data = valid_job().model_dump(mode="json")
     data["scenario"]["horizon_years"] = None
+    with pytest.raises(ValidationError):
+        JobPayload.model_validate(data)
+
+
+def test_job_contract_version_identifies_the_soc_window_shape() -> None:
+    assert valid_job().contract_version == "2.0"
+    data = valid_job().model_dump(mode="json")
+    data["contract_version"] = "1.0"
     with pytest.raises(ValidationError):
         JobPayload.model_validate(data)
 
@@ -55,6 +65,22 @@ def test_cycling_scenario_rejects_zero_depth() -> None:
     data["depth_of_discharge"] = 0.0
     with pytest.raises(ValidationError):
         ScenarioInput.model_validate(data)
+
+
+def test_soc_window_locates_the_cycle_and_contains_initial_soc() -> None:
+    scenario = valid_job().scenario
+    assert scenario.soc_window_min == 0.05
+    assert scenario.soc_window_max == 0.95
+
+    for update in (
+        {"soc_window_min": 0.95, "soc_window_max": 0.05},
+        {"soc_window_min": 0.2, "soc_window_max": 0.8, "depth_of_discharge": 0.9},
+        {"soc_window_min": 0.2, "soc_window_max": 0.8, "initial_soc": 0.9},
+    ):
+        data = scenario.model_dump()
+        data.update(update)
+        with pytest.raises(ValidationError):
+            ScenarioInput.model_validate(data)
 
 
 def test_generated_contracts_are_current(tmp_path: Path) -> None:
