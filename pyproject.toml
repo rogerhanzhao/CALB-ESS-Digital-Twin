@@ -16,6 +16,9 @@ dependencies = [
   "pyyaml>=6.0",
 ]
 
+[project.scripts]
+calb-fit-soh-baseline = "calb_ess_digital_twin.soh_engine.calibration_cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4"]
 
