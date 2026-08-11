@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "approval_eligible": {
+      "title": "Approval Eligible",
+      "type": "boolean"
+    },
+    "artifact_checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifact Checksums",
+      "type": "object"
+    },
+    "calibration_id": {
+      "title": "Calibration Id",
+      "type": "string"
+    },
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "engine": {
+      "const": "calibration-fit",
+      "default": "calibration-fit",
+      "title": "Engine",
+      "type": "string"
+    },
+    "fit_converged": {
+      "title": "Fit Converged",
+      "type": "boolean"
+    },
+    "fitted_model_version": {
+      "title": "Fitted Model Version",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "model_version": {
+      "const": "semi-empirical-calibration-V0.2",
+      "default": "semi-empirical-calibration-V0.2",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "validation_rmse_fraction": {
+      "minimum": 0,
+      "title": "Validation Rmse Fraction",
+      "type": "number"
+    }
+  },
+  "required": [
+    "job_id",
+    "code_revision",
+    "status",
+    "calibration_id",
+    "fitted_model_version",
+    "fit_converged",
+    "approval_eligible",
+    "validation_rmse_fraction",
+    "artifact_checksums"
+  ],
+  "title": "CalibrationFitJobResult",
+  "type": "object"
+}

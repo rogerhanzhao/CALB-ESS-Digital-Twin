@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "CalibrationBundleFile": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "minimum": 0,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "file_name": {
+          "title": "File Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_name",
+        "byte_count",
+        "sha256"
+      ],
+      "title": "CalibrationBundleFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "approval_eligible": {
+      "title": "Approval Eligible",
+      "type": "boolean"
+    },
+    "calibration_id": {
+      "title": "Calibration Id",
+      "type": "string"
+    },
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "dataset_revision_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dataset Revision Ids",
+      "type": "array"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/CalibrationBundleFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "calibration_id",
+    "model_version",
+    "code_revision",
+    "dataset_revision_ids",
+    "approval_eligible",
+    "files"
+  ],
+  "title": "CalibrationBundleManifest",
+  "type": "object"
+}

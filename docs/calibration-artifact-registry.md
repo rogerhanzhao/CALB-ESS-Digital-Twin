@@ -49,6 +49,15 @@ canonical measurements. Partial cycles and unavailable cycle selections are reje
 does not yet enqueue a hosted fit: it establishes the physically reviewable input contract that a
 future calibration queue must consume.
 
+The compute plane now defines that next boundary as the independent `calibration-fit` job contract.
+Its payload embeds one frozen `CalibrationRequest`; the job UUID must equal `calibration_id`, and
+the code revisions must agree. A worker writes `calibration-request.json`,
+`calibration-result.json`, and `calibration-manifest.json` beneath a non-overwriting bundle path.
+Retries verify the stored request, identities, evidence revision IDs, approval-eligibility summary,
+exact file set, byte counts, and SHA-256 values before returning the existing result. The hosted
+claim/upload/complete adapter remains the next control-plane slice; the current CLI intentionally
+does not advertise a remote calibration queue before those endpoints exist.
+
 ## Envelope semantics
 
 The reduced-order calibration records `mean_soc_min` and `mean_soc_max`. These describe the
