@@ -19,6 +19,7 @@ dependencies = [
 [project.scripts]
 calb-validate-test-data = "calb_ess_digital_twin.cell_database.import_cli:main"
 calb-fit-soh-baseline = "calb_ess_digital_twin.soh_engine.calibration_cli:main"
+calb-extrapolate-soh = "calb_ess_digital_twin.soh_engine.extrapolation_cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4"]
