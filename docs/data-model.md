@@ -29,6 +29,11 @@ creating a second evidence record. The authenticated download endpoint re-hashes
 serving it. A `registered` source is not calibration evidence until a separately versioned
 `dataset_revisions` row records mapping, cleaning output and validation disposition.
 
+The compute-plane dataset-revision bundle is now defined and locally executable. Hosted queue
+transport is the next adapter: the Web control plane must never run pandas or infer product limits;
+it will authorize a source and approved mapping/policy, while a Python worker produces the
+canonical/report/metrics bundle and returns only verified artifact metadata to D1/R2.
+
 ## Calibration evidence registry (V0.2)
 
 `calibrations` now stores the identity and queryable validity envelope of an immutable fitted

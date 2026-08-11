@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from calb_ess_digital_twin.cell_database.dataset_revision import (
+    DatasetRevisionManifest,
+    DatasetRevisionRequest,
+    DatasetRevisionResult,
+)
 from calb_ess_digital_twin.soh_engine import CalibrationResult
 from calb_ess_digital_twin.standard_study import StandardStudyRequest
 from calb_ess_digital_twin.study_comparison import (
@@ -79,6 +84,9 @@ def export(output_dir: Path) -> None:
         "study-comparison-request.schema.json": StudyComparisonRequest,
         "study-comparison-result.schema.json": StudyComparisonResult,
         "study-comparison-manifest.schema.json": StudyComparisonManifest,
+        "dataset-revision-request.schema.json": DatasetRevisionRequest,
+        "dataset-revision-result.schema.json": DatasetRevisionResult,
+        "dataset-revision-manifest.schema.json": DatasetRevisionManifest,
     }
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"

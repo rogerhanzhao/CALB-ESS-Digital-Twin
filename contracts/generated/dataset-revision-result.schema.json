@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "ValidationLevel": {
+      "enum": [
+        "pass",
+        "warning",
+        "reject"
+      ],
+      "title": "ValidationLevel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "canonical_available": {
+      "title": "Canonical Available",
+      "type": "boolean"
+    },
+    "cycle_metrics_available": {
+      "title": "Cycle Metrics Available",
+      "type": "boolean"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "normalized_row_count": {
+      "minimum": 0,
+      "title": "Normalized Row Count",
+      "type": "integer"
+    },
+    "revision": {
+      "title": "Revision",
+      "type": "string"
+    },
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_row_count": {
+      "minimum": 0,
+      "title": "Source Row Count",
+      "type": "integer"
+    },
+    "source_sha256": {
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "total_absolute_throughput_ah": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Absolute Throughput Ah"
+    },
+    "total_equivalent_full_cycles": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Equivalent Full Cycles"
+    },
+    "validation_outcome": {
+      "$ref": "#/$defs/ValidationLevel"
+    }
+  },
+  "required": [
+    "revision_id",
+    "dataset_id",
+    "revision",
+    "source_sha256",
+    "validation_outcome",
+    "source_row_count",
+    "normalized_row_count",
+    "canonical_available",
+    "cycle_metrics_available"
+  ],
+  "title": "DatasetRevisionResult",
+  "type": "object"
+}

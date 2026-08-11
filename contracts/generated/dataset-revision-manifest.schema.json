@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "DatasetRevisionFile": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "minimum": 0,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "content_type": {
+          "title": "Content Type",
+          "type": "string"
+        },
+        "file_name": {
+          "title": "File Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_name",
+        "content_type",
+        "byte_count",
+        "sha256"
+      ],
+      "title": "DatasetRevisionFile",
+      "type": "object"
+    },
+    "ValidationLevel": {
+      "enum": [
+        "pass",
+        "warning",
+        "reject"
+      ],
+      "title": "ValidationLevel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "calibration_eligible": {
+      "title": "Calibration Eligible",
+      "type": "boolean"
+    },
+    "dataset_id": {
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/DatasetRevisionFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "revision": {
+      "title": "Revision",
+      "type": "string"
+    },
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "validation_outcome": {
+      "$ref": "#/$defs/ValidationLevel"
+    }
+  },
+  "required": [
+    "revision_id",
+    "dataset_id",
+    "revision",
+    "source_sha256",
+    "validation_outcome",
+    "calibration_eligible",
+    "files"
+  ],
+  "title": "DatasetRevisionManifest",
+  "type": "object"
+}

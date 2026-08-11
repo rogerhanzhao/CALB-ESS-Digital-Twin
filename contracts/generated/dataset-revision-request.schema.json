@@ -1,0 +1,318 @@
+{
+  "$defs": {
+    "ColumnMapping": {
+      "additionalProperties": false,
+      "description": "Versioned, explicit mapping from source data to a canonical quantity.",
+      "properties": {
+        "canonical_column": {
+          "minLength": 1,
+          "title": "Canonical Column",
+          "type": "string"
+        },
+        "source_column": {
+          "minLength": 1,
+          "title": "Source Column",
+          "type": "string"
+        },
+        "source_unit": {
+          "minLength": 1,
+          "title": "Source Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_column",
+        "canonical_column",
+        "source_unit"
+      ],
+      "title": "ColumnMapping",
+      "type": "object"
+    },
+    "CurrentSign": {
+      "enum": [
+        "charge_positive",
+        "discharge_positive"
+      ],
+      "title": "CurrentSign",
+      "type": "string"
+    },
+    "CycleMetricPolicy": {
+      "additionalProperties": false,
+      "description": "Versioned test-plan interpretation; no product value is inferred.",
+      "properties": {
+        "full_cycle_sequence": {
+          "items": {
+            "$ref": "#/$defs/StepRole"
+          },
+          "minItems": 1,
+          "title": "Full Cycle Sequence",
+          "type": "array"
+        },
+        "nominal_capacity_ah": {
+          "exclusiveMinimum": 0,
+          "title": "Nominal Capacity Ah",
+          "type": "number"
+        },
+        "step_roles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/StepRole"
+          },
+          "title": "Step Roles",
+          "type": "object"
+        }
+      },
+      "required": [
+        "nominal_capacity_ah",
+        "step_roles",
+        "full_cycle_sequence"
+      ],
+      "title": "CycleMetricPolicy",
+      "type": "object"
+    },
+    "ImportManifest": {
+      "additionalProperties": false,
+      "description": "Immutable source identity and physical-test provenance.",
+      "properties": {
+        "batch_code": {
+          "minLength": 1,
+          "title": "Batch Code",
+          "type": "string"
+        },
+        "current_sign": {
+          "$ref": "#/$defs/CurrentSign",
+          "default": "charge_positive"
+        },
+        "equipment_id": {
+          "minLength": 1,
+          "title": "Equipment Id",
+          "type": "string"
+        },
+        "file_name": {
+          "minLength": 1,
+          "title": "File Name",
+          "type": "string"
+        },
+        "file_sha256": {
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "operator": {
+          "minLength": 1,
+          "title": "Operator",
+          "type": "string"
+        },
+        "product_id": {
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        },
+        "sample_id": {
+          "minLength": 1,
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "V0.2",
+          "default": "V0.2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_lab": {
+          "minLength": 1,
+          "title": "Source Lab",
+          "type": "string"
+        },
+        "test_ended_at": {
+          "format": "date-time",
+          "title": "Test Ended At",
+          "type": "string"
+        },
+        "test_started_at": {
+          "format": "date-time",
+          "title": "Test Started At",
+          "type": "string"
+        },
+        "test_type": {
+          "$ref": "#/$defs/TestType"
+        }
+      },
+      "required": [
+        "product_id",
+        "sample_id",
+        "batch_code",
+        "test_type",
+        "source_lab",
+        "equipment_id",
+        "test_started_at",
+        "test_ended_at",
+        "file_name",
+        "file_sha256",
+        "operator"
+      ],
+      "title": "ImportManifest",
+      "type": "object"
+    },
+    "StepRole": {
+      "enum": [
+        "charge",
+        "rest",
+        "discharge"
+      ],
+      "title": "StepRole",
+      "type": "string"
+    },
+    "TestType": {
+      "enum": [
+        "cycle_aging",
+        "calendar_aging",
+        "hppc",
+        "temperature"
+      ],
+      "title": "TestType",
+      "type": "string"
+    },
+    "ValidationPolicy": {
+      "additionalProperties": false,
+      "description": "Approved product/test-plan bounds supplied by the caller.",
+      "properties": {
+        "absolute_current_max_a": {
+          "exclusiveMinimum": 0,
+          "title": "Absolute Current Max A",
+          "type": "number"
+        },
+        "gap_interval_multiplier": {
+          "default": 3.0,
+          "exclusiveMinimum": 1,
+          "title": "Gap Interval Multiplier",
+          "type": "number"
+        },
+        "irregular_interval_fraction": {
+          "default": 0.1,
+          "minimum": 0,
+          "title": "Irregular Interval Fraction",
+          "type": "number"
+        },
+        "temperature_max_c": {
+          "title": "Temperature Max C",
+          "type": "number"
+        },
+        "temperature_min_c": {
+          "title": "Temperature Min C",
+          "type": "number"
+        },
+        "voltage_max_v": {
+          "title": "Voltage Max V",
+          "type": "number"
+        },
+        "voltage_min_v": {
+          "title": "Voltage Min V",
+          "type": "number"
+        }
+      },
+      "required": [
+        "voltage_min_v",
+        "voltage_max_v",
+        "absolute_current_max_a",
+        "temperature_min_c",
+        "temperature_max_c"
+      ],
+      "title": "ValidationPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cleaning_rule_version": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Cleaning Rule Version",
+      "type": "string"
+    },
+    "code_revision": {
+      "maxLength": 64,
+      "minLength": 7,
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "cycle_metric_policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CycleMetricPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dataset_id": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "manifest": {
+      "$ref": "#/$defs/ImportManifest"
+    },
+    "mapping_version": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "mappings": {
+      "items": {
+        "$ref": "#/$defs/ColumnMapping"
+      },
+      "minItems": 1,
+      "title": "Mappings",
+      "type": "array"
+    },
+    "revision": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Revision",
+      "type": "string"
+    },
+    "revision_id": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "V0.2",
+      "default": "V0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "validation_policy": {
+      "$ref": "#/$defs/ValidationPolicy"
+    }
+  },
+  "required": [
+    "revision_id",
+    "dataset_id",
+    "revision",
+    "mapping_version",
+    "cleaning_rule_version",
+    "code_revision",
+    "manifest",
+    "mappings",
+    "validation_policy"
+  ],
+  "title": "DatasetRevisionRequest",
+  "type": "object"
+}

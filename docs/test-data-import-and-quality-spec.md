@@ -174,6 +174,25 @@ Every dataset revision records:
 
 The source file remains readable and unchanged. Cleaning output must be reproducible from the source plus the recorded rules.
 
+The Python V0.2 revision engine now implements this deterministic calculation boundary. It consumes
+the immutable CSV source plus a strict `DatasetRevisionRequest` containing the source manifest,
+explicit column/unit mappings, approved validation limits, mapping and cleaning-rule versions,
+code revision, and (for cycle ageing) an explicit step-role policy. It atomically writes:
+
+```text
+revision-request.json
+validation-report.json
+dataset-revision-result.json
+canonical.csv                  # pass/warning only
+cycle-metrics.json             # accepted cycle-ageing data only
+revision-manifest.json
+```
+
+The manifest checksums every file and marks `calibration_eligible` only for an unqualified `pass`.
+Warnings remain non-eligible until a later reviewer-disposition workflow is defined; rejected
+sources retain their request/report/result evidence but produce no canonical or cycle-metric file.
+Retries cannot overwrite an existing bundle, and a verifier checks identities and every checksum.
+
 ## 7. Calibration validity envelope
 
 A calibration envelope is structured data, not prose. At minimum it contains:
