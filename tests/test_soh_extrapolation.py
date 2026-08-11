@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -95,6 +96,7 @@ def _points() -> list[ExposurePoint]:
     return [
         ExposurePoint(
             year=0,
+            calendar_date=date(2026, 1, 1),
             elapsed_days=0,
             absolute_throughput_ah=0,
             cycle_count=0,
@@ -102,6 +104,7 @@ def _points() -> list[ExposurePoint]:
         ),
         ExposurePoint(
             year=1,
+            calendar_date=date(2027, 1, 1),
             elapsed_days=365,
             absolute_throughput_ah=1000,
             cycle_count=365,
@@ -109,6 +112,7 @@ def _points() -> list[ExposurePoint]:
         ),
         ExposurePoint(
             year=20,
+            calendar_date=date(2046, 1, 1),
             elapsed_days=7300,
             absolute_throughput_ah=20000,
             cycle_count=7000,
@@ -189,6 +193,14 @@ def test_exposure_trajectory_cannot_move_backward() -> None:
     points[-1] = points[-1].model_copy(update={"cycle_count": 100})
 
     with pytest.raises(ValidationError, match="cycle_count must not decrease"):
+        _request(points=points)
+
+
+def test_exposure_calendar_dates_cannot_move_backward() -> None:
+    points = _points()
+    points[-1] = points[-1].model_copy(update={"calendar_date": date(2026, 6, 1)})
+
+    with pytest.raises(ValidationError, match="calendar dates must strictly increase"):
         _request(points=points)
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from enum import StrEnum
 from typing import Literal
 
@@ -46,6 +47,7 @@ class ExposurePoint(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     year: int = Field(ge=0)
+    calendar_date: date
     elapsed_days: float = Field(ge=0)
     absolute_throughput_ah: float = Field(ge=0)
     cycle_count: float = Field(ge=0)
@@ -77,6 +79,8 @@ class ExtrapolationRequest(BaseModel):
         for previous, current in zip(self.exposure_points, self.exposure_points[1:]):
             if current.year <= previous.year:
                 raise ValueError("exposure point years must strictly increase")
+            if current.calendar_date <= previous.calendar_date:
+                raise ValueError("exposure point calendar dates must strictly increase")
             for field in (
                 "elapsed_days",
                 "absolute_throughput_ah",
@@ -92,6 +96,7 @@ class ExtrapolationPoint(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     year: int
+    calendar_date: date
     elapsed_days: float
     absolute_throughput_ah: float
     cycle_count: float
