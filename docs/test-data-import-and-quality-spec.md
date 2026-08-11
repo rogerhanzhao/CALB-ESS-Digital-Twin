@@ -12,6 +12,13 @@ The physical test file is evidence. A model output is not allowed to repair, rep
 
 V0.2 registers CSV and XLSX packages. CSV is the canonical machine-readable format. XLSX may be accepted as an operator input, but an immutable canonical CSV artifact must be produced before review.
 
+The hosted V0.2 intake now persists the exact source bytes in the private `STUDY_ARTIFACTS` R2
+bucket. The server, rather than the browser, computes SHA-256, byte count and CSV row count. D1
+retains only provenance, checksum, size and the private object reference. Upload is idempotent and
+limited to 25 MiB per source package; larger laboratory exports must be split or use a future
+direct-upload ingestion service. Registration does not imply validation: XLSX remains unparsed and
+every source still requires a versioned mapping/cleaning revision before calibration.
+
 ## 2. Version chain
 
 ```text
@@ -206,7 +213,7 @@ The tables introduced in Draft PR #12 are provisional. Before merging:
 2. add sample identity and equipment/test-period provenance;
 3. represent unit mappings and validation reports as versioned artifacts;
 4. ensure calibrations reference dataset revisions;
-5. keep raw file content out of D1 and store only metadata/checksums/object references;
+5. keep raw file content out of D1 and store only metadata/checksums/object references; **implemented for hosted source intake**;
 6. obtain Alex.Z acceptance of the first import template and quality thresholds.
 
 Numeric product safety limits and warning tolerances remain test-plan configuration. They must not be invented in this generic specification.

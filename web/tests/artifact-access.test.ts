@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { artifactDownloadName, r2ObjectKeyFromUri } from "../lib/artifact-access.ts";
+import { artifactDownloadName, r2ObjectKeyFromUri, sourceAttachmentDisposition } from "../lib/artifact-access.ts";
 
 test("extracts only keys from the private study bucket namespace", () => {
   assert.equal(
@@ -17,6 +17,14 @@ test("extracts only keys from the private study bucket namespace", () => {
   ]) {
     assert.equal(r2ObjectKeyFromUri(uri), null);
   }
+});
+
+test("source attachments preserve UTF-8 names without permitting header injection", () => {
+  const disposition = sourceAttachmentDisposition("../循环数据\r\n.csv");
+  assert.match(disposition, /^attachment; filename="/);
+  assert.match(disposition, /filename\*=UTF-8''/);
+  assert.doesNotMatch(disposition, /[\r\n]/);
+  assert.doesNotMatch(disposition, /\.\.[/\\]/);
 });
 
 test("download names cannot inject response headers", () => {

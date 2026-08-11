@@ -13,3 +13,12 @@ export function r2ObjectKeyFromUri(uri: string): string | null {
 export function artifactDownloadName(kind: string): string {
   return SAFE_FILE_NAME.test(kind) ? kind : "study-artifact.json";
 }
+
+export function sourceAttachmentDisposition(originalName: string): string {
+  const baseName = originalName.split(/[\\/]/).at(-1)?.replace(/[\r\n\0]/g, "") || "dataset-source.bin";
+  const fallback = baseName.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "dataset-source.bin";
+  const encoded = encodeURIComponent(baseName).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}

@@ -60,15 +60,19 @@ export const testDatasets = sqliteTable("test_datasets", {
   testStartedAt: text("test_started_at").notNull(),
   testEndedAt: text("test_ended_at").notNull(),
   fileName: text("file_name").notNull(),
+  sourceContentType: text("source_content_type"),
+  byteCount: integer("byte_count"),
   storageUri: text("storage_uri"),
   checksumSha256: text("checksum_sha256"),
   rowCount: integer("row_count"),
   unitSchema: text("unit_schema").notNull(),
   status: text("status", { enum: DATASET_STATUSES }).notNull().default("registered"),
+  idempotencyKey: text("idempotency_key"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_test_datasets_product_created").on(table.productId, table.createdAt),
   index("idx_test_datasets_user_created").on(table.userId, table.createdAt),
+  uniqueIndex("uq_test_datasets_owner_idempotency").on(table.userId, table.idempotencyKey),
   check("ck_test_datasets_status", sql`${table.status} in ('registered', 'validated', 'rejected')`),
 ]);
 

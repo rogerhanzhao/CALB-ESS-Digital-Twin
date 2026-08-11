@@ -42,6 +42,10 @@ parameter sweeps.
   files per study plus SQLite metadata; capacity is driven mainly by retained source test data and
   future PyBaMM traces, not by the annual SOH summary bundle.
 - Retain structured summaries in the database and large traces/reports in object storage.
+- Raw CSV/XLSX intake is capped at 25 MiB per request in V0.2. The Web worker temporarily holds one
+  source body while validating and hashing it, so concurrency limits must account for roughly one
+  source-file-sized memory allocation per active upload. Larger exports require a future signed
+  direct-to-object-storage multipart path rather than raising this control-plane limit.
 - Alert when queue wait exceeds 10 minutes, worker heartbeat exceeds 60 seconds, or disk usage exceeds 75%.
 
 ## Availability and recovery

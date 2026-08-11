@@ -140,6 +140,10 @@ export default function Home() {
   const [sampleCode, setSampleCode] = useState("");
   const [equipmentId, setEquipmentId] = useState("");
   const [operator, setOperator] = useState("");
+  const [testStartedAt, setTestStartedAt] = useState("");
+  const [testEndedAt, setTestEndedAt] = useState("");
+  const [unitSchema, setUnitSchema] = useState("canonical-csv-V0.2");
+  const [submittingDataset, setSubmittingDataset] = useState(false);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [calibrations, setCalibrations] = useState<CalibrationOption[]>([]);
   const [standardScenarios, setStandardScenarios] = useState<StandardScenarioOption[]>([]);
@@ -335,15 +339,20 @@ export default function Home() {
   async function registerDataset(event: FormEvent) {
     event.preventDefault();
     if (!datasetFile || !productId) { setNotice("请先保存产品档案并选择测试文件"); return; }
-    const bytes = await datasetFile.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", bytes);
-    const checksumSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-    const rowCount = datasetFile.name.toLowerCase().endsWith(".csv") ? Math.max(0, new TextDecoder().decode(bytes).split(/\r?\n/).filter(Boolean).length - 1) : null;
-    const now = new Date();
-    const response = await fetch("/api/test-datasets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productId, sampleCode, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, equipmentId, operator, testStartedAt: new Date(now.getTime() - 3600000).toISOString(), testEndedAt: now.toISOString(), fileName: datasetFile.name, checksumSha256, rowCount, unitSchema: "待列映射审核" }) });
-    const payload = await response.json() as { error?: string; details?: string[] };
-    if (!response.ok) { setNotice(payload.details?.join("；") ?? payload.error ?? "登记失败"); return; }
-    setNotice("测试数据元数据与 SHA-256 已登记；原始文件等待对象存储接入");
+    if (!testStartedAt || !testEndedAt || new Date(testEndedAt) <= new Date(testStartedAt)) { setNotice("请填写真实测试起止时间，且结束时间必须晚于开始时间"); return; }
+    setSubmittingDataset(true);
+    try {
+      const form = new FormData();
+      for (const [key, value] of Object.entries({ productId, sampleCode, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, equipmentId, operator, testStartedAt: new Date(testStartedAt).toISOString(), testEndedAt: new Date(testEndedAt).toISOString(), unitSchema })) form.set(key, value);
+      form.set("sourceFile", datasetFile);
+      const response = await fetch("/api/test-datasets", { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: form });
+      const payload = await response.json() as { dataset?: { checksumSha256: string; byteCount: number; rowCount: number | null }; error?: string; details?: string[] };
+      if (!response.ok || !payload.dataset) { setNotice(payload.details?.join("；") ?? payload.error ?? "上传失败"); return; }
+      setNotice(`原始测试证据已不可变保存 · ${payload.dataset.byteCount} B · SHA-256 ${payload.dataset.checksumSha256.slice(0, 12)} · ${payload.dataset.rowCount ?? "待解析"} 行`);
+      setDatasetFile(null);
+    } finally {
+      setSubmittingDataset(false);
+    }
   }
 
   async function submitStandardStudy(event: FormEvent) {
@@ -503,7 +512,7 @@ export default function Home() {
 
           <section className="panel domain-card" id="test-data">
             <div className="panel-head"><div><p className="eyebrow">TEST DATA INTAKE</p><h2>测试数据导入</h2></div><span className="stage-badge waiting">待接入</span></div>
-            <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><div className="form-row"><label>样品编号<input value={sampleCode} onChange={(event) => setSampleCode(event.target.value)} required /></label><label>设备 / 通道编号<input value={equipmentId} onChange={(event) => setEquipmentId(event.target.value)} required /></label></div><div className="form-row"><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><label>责任操作员<input value={operator} onChange={(event) => setOperator(event.target.value)} required /></label></div><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>当前登记 CSV / XLSX 元数据、行数与 SHA-256；原始文件存储将在对象存储接入后启用</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit">登记数据集</button></div></form>
+            <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><div className="form-row"><label>样品编号<input value={sampleCode} onChange={(event) => setSampleCode(event.target.value)} required /></label><label>设备 / 通道编号<input value={equipmentId} onChange={(event) => setEquipmentId(event.target.value)} required /></label></div><div className="form-row"><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><label>责任操作员<input value={operator} onChange={(event) => setOperator(event.target.value)} required /></label></div><div className="form-row"><label>测试开始时间<input type="datetime-local" value={testStartedAt} onChange={(event) => setTestStartedAt(event.target.value)} required /></label><label>测试结束时间<input type="datetime-local" value={testEndedAt} onChange={(event) => setTestEndedAt(event.target.value)} required /></label></div><label>单位 / 列映射声明<input value={unitSchema} onChange={(event) => setUnitSchema(event.target.value)} maxLength={2000} placeholder="例如 canonical-csv-V0.2 或受控映射版本" required /></label><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>CSV / XLSX 原始字节将写入私有对象存储；服务器独立计算 SHA-256 和 CSV 行数，源文件不会被覆盖。</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit" disabled={submittingDataset}>{submittingDataset ? "正在上传…" : "上传不可变源数据"}</button></div></form>
             <p className="boundary-note">导入数据必须保留来源、批次、测试设备、时间范围和单位；未经审核的数据不能用于发布模型。</p>
           </section>
 

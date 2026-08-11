@@ -19,6 +19,16 @@ compressed the result to a single scalar. That makes the platform's central use 
 A scenario has many runs. A run has many artifacts. Comparing model versions means selecting
 runs that share a `scenario_id` and differ in `model_version`.
 
+## Raw test evidence (V0.2)
+
+`test_datasets` identifies one immutable laboratory source package and its physical product,
+sample/batch, equipment, operator and test period. `storage_uri`, server-computed
+`checksum_sha256`, `byte_count`, `source_content_type` and `row_count` bind that row to private R2
+bytes; raw content is never stored in D1. `(user_id, idempotency_key)` prevents a browser retry from
+creating a second evidence record. The authenticated download endpoint re-hashes the object before
+serving it. A `registered` source is not calibration evidence until a separately versioned
+`dataset_revisions` row records mapping, cleaning output and validation disposition.
+
 ## Calibration evidence registry (V0.2)
 
 `calibrations` now stores the identity and queryable validity envelope of an immutable fitted
