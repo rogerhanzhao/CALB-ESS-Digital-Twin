@@ -28,7 +28,9 @@ is complete. An existing target directory is never overwritten.
 
 The manifest deliberately records scenario and calibration code revisions separately. Updating the
 scenario generator without changing the calibration, or recalibrating without changing the standard
-scenario, remains visible in the evidence chain.
+scenario, remains visible in the evidence chain. It also lists every calibration dataset revision,
+the calibration approval status, and the resulting engineering-review and warranty states so a
+later result update can be traced directly to newly introduced physical evidence.
 
 ## Boundary
 

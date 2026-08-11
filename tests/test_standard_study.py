@@ -169,6 +169,10 @@ def test_manifest_keeps_scenario_and_calibration_revisions_separate(tmp_path: Pa
     assert manifest.calibration_code_revision == "cal1234"
     assert manifest.standard_scenario_version == "scenario-V1"
     assert manifest.calibration_id == "calibration-001"
+    assert manifest.calibration_dataset_revision_ids == ("dataset-revision-001",)
+    assert manifest.calibration_approval_status == CalibrationApprovalStatus.APPROVED
+    assert manifest.engineering_review_eligible is True
+    assert manifest.warranty_eligible is False
 
 
 def test_cli_creates_exploratory_bundle_and_returns_diagnostic_code(

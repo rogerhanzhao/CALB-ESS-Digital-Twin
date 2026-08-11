@@ -59,8 +59,12 @@ class StandardStudyManifest(BaseModel):
     standard_scenario_version: str
     calibration_id: str
     calibration_model_version: str
+    calibration_dataset_revision_ids: tuple[str, ...]
+    calibration_approval_status: CalibrationApprovalStatus
     scenario_code_revision: str
     calibration_code_revision: str
+    engineering_review_eligible: bool
+    warranty_eligible: Literal[False] = False
     files: tuple[ArtifactFileRecord, ...]
 
 
@@ -115,8 +119,11 @@ def write_standard_study_bundle(
         standard_scenario_version=request.exposure_plan.standard_scenario_version,
         calibration_id=request.calibration.calibration_id,
         calibration_model_version=request.calibration.model_version,
+        calibration_dataset_revision_ids=request.calibration.dataset_revision_ids,
+        calibration_approval_status=request.calibration_approval_status,
         scenario_code_revision=request.exposure_plan.code_revision,
         calibration_code_revision=request.calibration.code_revision,
+        engineering_review_eligible=artifact.soh_result.engineering_review_eligible,
         files=records,
     )
     payloads["manifest.json"] = _json_bytes(manifest)
