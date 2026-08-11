@@ -11,6 +11,10 @@ from .calibration import (
     capacity_fraction,
     fit_semi_empirical_model,
 )
+from .calibration_observations import (
+    RevisionObservationSelection,
+    build_revision_observations,
+)
 from .extrapolation import (
     CalibrationApprovalStatus,
     ExposurePoint,
@@ -31,10 +35,12 @@ __all__ = [
     "ExtrapolationLimits",
     "ExtrapolationRequest",
     "ExtrapolationResult",
+    "RevisionObservationSelection",
     "SemiEmpiricalParameters",
     "SplitRole",
     "StandardScenarioConditions",
     "TrajectoryIssue",
+    "build_revision_observations",
     "capacity_fraction",
     "extrapolate_soh",
     "fit_semi_empirical_model",
