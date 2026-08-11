@@ -48,7 +48,7 @@ class ExposurePoint(BaseModel):
     year: int = Field(ge=0)
     elapsed_days: float = Field(ge=0)
     absolute_throughput_ah: float = Field(ge=0)
-    cycle_count: int = Field(ge=0)
+    cycle_count: float = Field(ge=0)
     equivalent_full_cycles: float = Field(ge=0)
 
 
@@ -94,7 +94,7 @@ class ExtrapolationPoint(BaseModel):
     year: int
     elapsed_days: float
     absolute_throughput_ah: float
-    cycle_count: int
+    cycle_count: float
     equivalent_full_cycles: float
     predicted_capacity_fraction: float
     within_validity_envelope: bool
