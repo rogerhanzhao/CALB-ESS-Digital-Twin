@@ -11,6 +11,7 @@ export const PRODUCT_STATUSES = ["draft", "under_review", "released", "retired"]
 export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const;
 export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
 export const SCENARIO_STATUSES = ["draft", "released", "superseded"] as const;
+export const CALIBRATION_STATUSES = ["draft", "under_review", "approved", "rejected", "superseded"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -92,6 +93,67 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
 ]);
 
 /** What is being studied. Never mutated in place: an edit produces a new row. */
+/**
+ * A fitted model plus the range it was fitted over.
+ *
+ * The envelope is columns, not prose, because `docs/architecture.md` section 3 requires
+ * every run to be marked inside or outside it. A boundary written as a sentence cannot be
+ * evaluated, which is why `runs.within_validity_envelope` has been permanently NULL: the
+ * column existed with nothing able to compute it. Dimensions follow
+ * `docs/test-data-import-and-quality-spec.md` section 7.
+ *
+ * Nullable bounds mean "this calibration does not constrain that dimension", which is not
+ * the same as a bound of zero. `web/lib/calibrations.ts` treats an absent bound as
+ * unconstrained and an absent scenario input as unevaluatable -- never as a pass.
+ */
+export const calibrations = sqliteTable("calibrations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  /** Fitted artifact identity, carried into every result produced with it. */
+  modelVersion: text("model_version").notNull(),
+  codeRevision: text("code_revision").notNull(),
+  /** Reported fit error against the input revisions. Null until the fit has been scored. */
+  fitError: real("fit_error"),
+  temperatureMinC: real("temperature_min_c"),
+  temperatureMaxC: real("temperature_max_c"),
+  chargeRateMinC: real("charge_rate_min_c"),
+  chargeRateMaxC: real("charge_rate_max_c"),
+  dischargeRateMinC: real("discharge_rate_min_c"),
+  dischargeRateMaxC: real("discharge_rate_max_c"),
+  depthOfDischargeMin: real("depth_of_discharge_min"),
+  depthOfDischargeMax: real("depth_of_discharge_max"),
+  socMin: real("soc_min"),
+  socMax: real("soc_max"),
+  maxCalendarDays: real("max_calendar_days"),
+  maxCycles: real("max_cycles"),
+  maxEquivalentFullCycles: real("max_equivalent_full_cycles"),
+  status: text("status", { enum: CALIBRATION_STATUSES }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_calibrations_product_created").on(table.productId, table.createdAt),
+  index("idx_calibrations_user_created").on(table.userId, table.createdAt),
+  check(
+    "ck_calibrations_status",
+    sql`${table.status} in ('draft', 'under_review', 'approved', 'rejected', 'superseded')`,
+  ),
+]);
+
+/**
+ * Which dataset revisions a calibration was fitted against.
+ *
+ * A join table rather than a list packed into one column: the evidence chain is the point,
+ * and a JSON blob of ids carries no foreign key, so a revision could be deleted or renamed
+ * out from under an approved calibration with nothing to stop it.
+ */
+export const calibrationInputs = sqliteTable("calibration_inputs", {
+  calibrationId: text("calibration_id").notNull().references(() => calibrations.id),
+  datasetRevisionId: text("dataset_revision_id").notNull().references(() => datasetRevisions.id),
+}, (table) => [
+  uniqueIndex("uq_calibration_inputs_pair").on(table.calibrationId, table.datasetRevisionId),
+  index("idx_calibration_inputs_revision").on(table.datasetRevisionId),
+]);
+
 /**
  * A named, versioned duty cycle that results are meant to be compared across.
  *
