@@ -19,6 +19,22 @@ compressed the result to a single scalar. That makes the platform's central use 
 A scenario has many runs. A run has many artifacts. Comparing model versions means selecting
 runs that share a `scenario_id` and differ in `model_version`.
 
+## Calibration evidence registry (V0.2)
+
+`calibrations` now stores the identity and queryable validity envelope of an immutable fitted
+artifact. The exact canonical JSON lives in private R2; `artifact_object_key`,
+`artifact_checksum_sha256`, and `artifact_size_bytes` bind the D1 record to those bytes.
+`calibration_inputs` links each calibration to the validated dataset revisions used for fitting,
+so approval evidence cannot be represented as an unchecked JSON list.
+
+Reduced-order model bounds `mean_soc_min` / `mean_soc_max` are intentionally separate from the
+legacy SOC-window bounds `soc_min` / `soc_max`. See
+`docs/calibration-artifact-registry.md` for the registration and approval gates.
+
+`standard_scenarios` V0.2 rows also carry `code_revision`, `cell_temperature_c`, operating
+availability, and charge/discharge C-rate limits. The fields are nullable only to preserve
+historical V0.1 rows; an incomplete legacy row cannot transition to `released`.
+
 ## `scenarios`
 
 Input definition. Never mutated in place — an edit produces a new row, so every run keeps

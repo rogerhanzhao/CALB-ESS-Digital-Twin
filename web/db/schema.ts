@@ -109,9 +109,16 @@ export const calibrations = sqliteTable("calibrations", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   productId: text("product_id").notNull().references(() => cellProducts.id),
+  /** Identity carried by the fitted artifact; separate from this internal row id. */
+  artifactCalibrationId: text("artifact_calibration_id"),
   /** Fitted artifact identity, carried into every result produced with it. */
   modelVersion: text("model_version").notNull(),
   codeRevision: text("code_revision").notNull(),
+  schemaVersion: text("schema_version").notNull().default("V0.2"),
+  artifactObjectKey: text("artifact_object_key"),
+  artifactChecksumSha256: text("artifact_checksum_sha256"),
+  artifactSizeBytes: integer("artifact_size_bytes"),
+  approvalEligible: integer("approval_eligible"),
   /** Reported fit error against the input revisions. Null until the fit has been scored. */
   fitError: real("fit_error"),
   cellTemperatureMinC: real("cell_temperature_min_c"),
@@ -124,14 +131,26 @@ export const calibrations = sqliteTable("calibrations", {
   depthOfDischargeMax: real("depth_of_discharge_max"),
   socMin: real("soc_min"),
   socMax: real("soc_max"),
+  /** Mean-SOC envelope used by the reduced-order calibration; not an SOC window. */
+  meanSocMin: real("mean_soc_min"),
+  meanSocMax: real("mean_soc_max"),
   maxCalendarDays: real("max_calendar_days"),
   maxCycles: real("max_cycles"),
   maxEquivalentFullCycles: real("max_equivalent_full_cycles"),
+  maxAbsoluteThroughputAh: real("max_absolute_throughput_ah"),
   status: text("status", { enum: CALIBRATION_STATUSES }).notNull().default("draft"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_calibrations_product_created").on(table.productId, table.createdAt),
   index("idx_calibrations_user_created").on(table.userId, table.createdAt),
+  uniqueIndex("uq_calibrations_owner_artifact_checksum").on(
+    table.userId,
+    table.artifactChecksumSha256,
+  ),
+  uniqueIndex("uq_calibrations_owner_artifact_id").on(
+    table.userId,
+    table.artifactCalibrationId,
+  ),
   check(
     "ck_calibrations_status",
     sql`${table.status} in ('draft', 'under_review', 'approved', 'rejected', 'superseded')`,
@@ -176,8 +195,14 @@ export const standardScenarios = sqliteTable("standard_scenarios", {
   /** Monotonic within `code`. A changed definition is a new version, never an edit. */
   version: integer("version").notNull(),
   name: text("name").notNull(),
+  /** Null on legacy V0.1 rows, which remain visible but are not executable. */
+  codeRevision: text("code_revision"),
   ambientTemperatureC: real("ambient_temperature_c").notNull(),
+  cellTemperatureC: real("cell_temperature_c"),
   cyclesPerDay: real("cycles_per_day").notNull(),
+  operatingAvailabilityFraction: real("operating_availability_fraction"),
+  maxChargeCRate: real("max_charge_c_rate"),
+  maxDischargeCRate: real("max_discharge_c_rate"),
   depthOfDischarge: real("depth_of_discharge").notNull(),
   /**
    * Operating SOC window. Stored explicitly because DoD alone does not locate it.

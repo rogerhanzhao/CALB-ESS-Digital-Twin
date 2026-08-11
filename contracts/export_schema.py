@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from calb_ess_digital_twin.soh_engine import CalibrationResult
 from calb_ess_digital_twin.standard_study import StandardStudyRequest
 from contracts.models import JobPayload, RunResult
 
@@ -67,6 +68,7 @@ def export(output_dir: Path) -> None:
         "job.schema.json": JobPayload,
         "result.schema.json": RunResult,
         "standard-study-request.schema.json": StandardStudyRequest,
+        "calibration-result.schema.json": CalibrationResult,
     }
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"

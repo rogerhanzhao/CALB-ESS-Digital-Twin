@@ -58,8 +58,13 @@ const SOC_TOLERANCE = 1e-9;
 export type StandardScenarioInput = {
   code: string;
   name: string;
+  codeRevision: string;
   ambientTemperatureC: number;
+  cellTemperatureC: number;
   cyclesPerDay: number;
+  operatingAvailabilityFraction: number;
+  maxChargeCRate: number;
+  maxDischargeCRate: number;
   depthOfDischarge: number;
   socWindowMin: number;
   socWindowMax: number;
@@ -105,9 +110,22 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name || name.length > 120) errors.push("name is required and must be at most 120 characters");
+  const codeRevision = typeof body.codeRevision === "string" ? body.codeRevision.trim() : "";
+  if (codeRevision.length < 7 || codeRevision.length > 64) {
+    errors.push("codeRevision must contain 7-64 characters");
+  }
 
   const ambientTemperatureC = numberIn(body, "ambientTemperatureC", CONTRACT_RANGES.ambient_temperature_c, errors);
+  const cellTemperatureC = numberIn(body, "cellTemperatureC", { min: -40, max: 100 }, errors);
   const cyclesPerDay = numberIn(body, "cyclesPerDay", CONTRACT_RANGES.cycles_per_day, errors);
+  const operatingAvailabilityFraction = numberIn(
+    body,
+    "operatingAvailabilityFraction",
+    { min: 0, max: 1 },
+    errors,
+  );
+  const maxChargeCRate = numberIn(body, "maxChargeCRate", { min: 0, max: 10 }, errors);
+  const maxDischargeCRate = numberIn(body, "maxDischargeCRate", { min: 0, max: 10 }, errors);
   const depthOfDischarge = numberIn(body, "depthOfDischarge", CONTRACT_RANGES.depth_of_discharge, errors);
   const socWindowMin = numberIn(body, "socWindowMin", CONTRACT_RANGES.soc_window_min, errors);
   const socWindowMax = numberIn(body, "socWindowMax", CONTRACT_RANGES.soc_window_max, errors);
@@ -160,8 +178,13 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
     value: {
       code,
       name,
+      codeRevision,
       ambientTemperatureC,
+      cellTemperatureC,
       cyclesPerDay,
+      operatingAvailabilityFraction,
+      maxChargeCRate,
+      maxDischargeCRate,
       depthOfDischarge,
       socWindowMin,
       socWindowMax,

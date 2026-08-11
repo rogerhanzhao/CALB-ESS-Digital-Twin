@@ -177,7 +177,7 @@ class CalibrationResult(BaseModel):
     model_version: str
     code_revision: str
     product_revision: str
-    dataset_revision_ids: tuple[str, ...]
+    dataset_revision_ids: tuple[str, ...] = Field(min_length=1)
     parameters: SemiEmpiricalParameters
     metrics: FitMetrics
     validity_envelope: CalibrationValidityEnvelope

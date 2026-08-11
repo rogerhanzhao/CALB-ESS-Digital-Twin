@@ -1,114 +1,5 @@
 {
   "$defs": {
-    "CalibrationApprovalStatus": {
-      "enum": [
-        "draft",
-        "under_review",
-        "approved",
-        "rejected",
-        "superseded"
-      ],
-      "title": "CalibrationApprovalStatus",
-      "type": "string"
-    },
-    "CalibrationResult": {
-      "additionalProperties": false,
-      "description": "Draft calibration artifact; ``approval_eligible`` is not approval.",
-      "properties": {
-        "approval_eligible": {
-          "title": "Approval Eligible",
-          "type": "boolean"
-        },
-        "calibration_id": {
-          "title": "Calibration Id",
-          "type": "string"
-        },
-        "code_revision": {
-          "title": "Code Revision",
-          "type": "string"
-        },
-        "dataset_revision_ids": {
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Dataset Revision Ids",
-          "type": "array"
-        },
-        "fit_converged": {
-          "title": "Fit Converged",
-          "type": "boolean"
-        },
-        "identifiable": {
-          "title": "Identifiable",
-          "type": "boolean"
-        },
-        "meets_validation_limit": {
-          "title": "Meets Validation Limit",
-          "type": "boolean"
-        },
-        "metrics": {
-          "$ref": "#/$defs/FitMetrics"
-        },
-        "model_version": {
-          "title": "Model Version",
-          "type": "string"
-        },
-        "observation_fits": {
-          "items": {
-            "$ref": "#/$defs/ObservationFit"
-          },
-          "title": "Observation Fits",
-          "type": "array"
-        },
-        "parameters": {
-          "$ref": "#/$defs/SemiEmpiricalParameters"
-        },
-        "parameters_at_bounds": {
-          "title": "Parameters At Bounds",
-          "type": "boolean"
-        },
-        "product_revision": {
-          "title": "Product Revision",
-          "type": "string"
-        },
-        "schema_version": {
-          "const": "V0.2",
-          "default": "V0.2",
-          "title": "Schema Version",
-          "type": "string"
-        },
-        "validity_envelope": {
-          "$ref": "#/$defs/CalibrationValidityEnvelope"
-        },
-        "warnings": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Warnings",
-          "type": "array"
-        }
-      },
-      "required": [
-        "calibration_id",
-        "model_version",
-        "code_revision",
-        "product_revision",
-        "dataset_revision_ids",
-        "parameters",
-        "metrics",
-        "validity_envelope",
-        "fit_converged",
-        "identifiable",
-        "parameters_at_bounds",
-        "meets_validation_limit",
-        "approval_eligible",
-        "warnings",
-        "observation_fits"
-      ],
-      "title": "CalibrationResult",
-      "type": "object"
-    },
     "CalibrationValidityEnvelope": {
       "additionalProperties": false,
       "properties": {
@@ -356,149 +247,66 @@
       ],
       "title": "SplitRole",
       "type": "string"
-    },
-    "StandardExposurePlan": {
-      "additionalProperties": false,
-      "description": "Versioned constant-duty plan for one standard engineering scenario.",
-      "properties": {
-        "cell_temperature_c": {
-          "title": "Cell Temperature C",
-          "type": "number"
-        },
-        "code_revision": {
-          "minLength": 7,
-          "title": "Code Revision",
-          "type": "string"
-        },
-        "cycles_per_operating_day": {
-          "minimum": 0,
-          "title": "Cycles Per Operating Day",
-          "type": "number"
-        },
-        "depth_of_discharge": {
-          "maximum": 1,
-          "minimum": 0,
-          "title": "Depth Of Discharge",
-          "type": "number"
-        },
-        "horizon_years": {
-          "minimum": 1,
-          "title": "Horizon Years",
-          "type": "integer"
-        },
-        "initial_absolute_throughput_ah": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Initial Absolute Throughput Ah",
-          "type": "number"
-        },
-        "initial_cycle_count": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Initial Cycle Count",
-          "type": "number"
-        },
-        "initial_elapsed_days": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Initial Elapsed Days",
-          "type": "number"
-        },
-        "initial_equivalent_full_cycles": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Initial Equivalent Full Cycles",
-          "type": "number"
-        },
-        "max_charge_c_rate": {
-          "minimum": 0,
-          "title": "Max Charge C Rate",
-          "type": "number"
-        },
-        "max_discharge_c_rate": {
-          "minimum": 0,
-          "title": "Max Discharge C Rate",
-          "type": "number"
-        },
-        "nominal_capacity_ah": {
-          "exclusiveMinimum": 0,
-          "title": "Nominal Capacity Ah",
-          "type": "number"
-        },
-        "operating_availability_fraction": {
-          "maximum": 1,
-          "minimum": 0,
-          "title": "Operating Availability Fraction",
-          "type": "number"
-        },
-        "product_revision": {
-          "minLength": 1,
-          "title": "Product Revision",
-          "type": "string"
-        },
-        "schema_version": {
-          "const": "V0.2",
-          "default": "V0.2",
-          "title": "Schema Version",
-          "type": "string"
-        },
-        "soc_window_max": {
-          "maximum": 1,
-          "minimum": 0,
-          "title": "Soc Window Max",
-          "type": "number"
-        },
-        "soc_window_min": {
-          "maximum": 1,
-          "minimum": 0,
-          "title": "Soc Window Min",
-          "type": "number"
-        },
-        "standard_scenario_version": {
-          "minLength": 1,
-          "title": "Standard Scenario Version",
-          "type": "string"
-        },
-        "study_start_date": {
-          "format": "date",
-          "title": "Study Start Date",
-          "type": "string"
-        }
-      },
-      "required": [
-        "standard_scenario_version",
-        "code_revision",
-        "product_revision",
-        "study_start_date",
-        "horizon_years",
-        "nominal_capacity_ah",
-        "cycles_per_operating_day",
-        "operating_availability_fraction",
-        "soc_window_min",
-        "soc_window_max",
-        "depth_of_discharge",
-        "cell_temperature_c",
-        "max_charge_c_rate",
-        "max_discharge_c_rate"
-      ],
-      "title": "StandardExposurePlan",
-      "type": "object"
     }
   },
   "additionalProperties": false,
+  "description": "Draft calibration artifact; ``approval_eligible`` is not approval.",
   "properties": {
-    "calibration": {
-      "$ref": "#/$defs/CalibrationResult"
+    "approval_eligible": {
+      "title": "Approval Eligible",
+      "type": "boolean"
     },
-    "calibration_approval_status": {
-      "$ref": "#/$defs/CalibrationApprovalStatus"
+    "calibration_id": {
+      "title": "Calibration Id",
+      "type": "string"
     },
-    "exposure_plan": {
-      "$ref": "#/$defs/StandardExposurePlan"
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
     },
-    "result_version": {
-      "minLength": 1,
-      "title": "Result Version",
+    "dataset_revision_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Dataset Revision Ids",
+      "type": "array"
+    },
+    "fit_converged": {
+      "title": "Fit Converged",
+      "type": "boolean"
+    },
+    "identifiable": {
+      "title": "Identifiable",
+      "type": "boolean"
+    },
+    "meets_validation_limit": {
+      "title": "Meets Validation Limit",
+      "type": "boolean"
+    },
+    "metrics": {
+      "$ref": "#/$defs/FitMetrics"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "observation_fits": {
+      "items": {
+        "$ref": "#/$defs/ObservationFit"
+      },
+      "title": "Observation Fits",
+      "type": "array"
+    },
+    "parameters": {
+      "$ref": "#/$defs/SemiEmpiricalParameters"
+    },
+    "parameters_at_bounds": {
+      "title": "Parameters At Bounds",
+      "type": "boolean"
+    },
+    "product_revision": {
+      "title": "Product Revision",
       "type": "string"
     },
     "schema_version": {
@@ -507,19 +315,34 @@
       "title": "Schema Version",
       "type": "string"
     },
-    "study_version": {
-      "minLength": 1,
-      "title": "Study Version",
-      "type": "string"
+    "validity_envelope": {
+      "$ref": "#/$defs/CalibrationValidityEnvelope"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
     }
   },
   "required": [
-    "study_version",
-    "result_version",
-    "exposure_plan",
-    "calibration",
-    "calibration_approval_status"
+    "calibration_id",
+    "model_version",
+    "code_revision",
+    "product_revision",
+    "dataset_revision_ids",
+    "parameters",
+    "metrics",
+    "validity_envelope",
+    "fit_converged",
+    "identifiable",
+    "parameters_at_bounds",
+    "meets_validation_limit",
+    "approval_eligible",
+    "warnings",
+    "observation_fits"
   ],
-  "title": "StandardStudyRequest",
+  "title": "CalibrationResult",
   "type": "object"
 }

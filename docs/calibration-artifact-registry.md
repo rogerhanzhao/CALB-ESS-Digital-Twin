@@ -1,0 +1,60 @@
+# Calibration artifact registry
+
+The V0.2 registry turns a fitted SOH model into auditable platform evidence. It does not
+approve a calibration merely because a solver converged, and it does not allow the Web tier to
+invent missing cell, scenario, or exposure values.
+
+## Intended operating pattern
+
+This platform is designed for a small number of controlled engineering studies, not a public
+high-throughput simulation service. When CALB introduces a product revision, test evidence is
+registered and validated, a calibration is fitted, and several released standard duty cycles
+are executed. The immutable results are then reused for engineering, solution design, and
+warranty analysis. New evidence creates a new calibration and a new result version; it never
+rewrites the prior evidence chain.
+
+## Registration and approval
+
+`POST /api/calibrations` accepts the full generated `CalibrationResult` V0.2 artifact. The
+control plane verifies that the selected product revision and every dataset revision belong to
+the authenticated owner, validates the artifact against the Python-generated JSON Schema, and
+writes canonical JSON bytes to the private `STUDY_ARTIFACTS` R2 bucket. D1 stores identity,
+checksum, byte length, fit score, validity bounds, and normalized links to dataset revisions.
+
+A newly registered artifact is `under_review`. `POST /api/calibrations/{id}/approve` advances
+it to `approved` only when:
+
+- the compute artifact itself says `approval_eligible = true`;
+- at least one linked dataset revision exists and every linked revision has `pass` status;
+- the private object still has the registered byte length, SHA-256 metadata, and calibration
+  row identity; and
+- the calibration is still `under_review` when the conditional update executes.
+
+The compute engine's `approval_eligible` flag is therefore necessary but not sufficient. It is
+a reproducible calculation outcome, while approval is a separate controlled workflow decision.
+
+## Envelope semantics
+
+The reduced-order calibration records `mean_soc_min` and `mean_soc_max`. These describe the
+mean SOC values represented by the fitting evidence. They are not the lower and upper bounds
+of a duty-cycle SOC window. The registry stores them in dedicated columns and deliberately
+leaves the older `soc_min` / `soc_max` window columns null; conflating these quantities would
+allow an invalid warranty conclusion to appear in-range.
+
+## Standard scenarios
+
+New standard-scenario versions include the worker code revision, cell temperature, operating
+availability, and maximum charge/discharge C-rates. Older V0.1 rows remain visible for history
+but cannot be released or executed because those values were never captured. Release is an
+explicit, idempotent transition from `draft` to `released`; changing any definition requires a
+new version.
+
+## Storage and hardware profile
+
+Calibration registration and approval are lightweight control-plane operations: D1 queries,
+JSON validation, hashing, and an R2 object write or metadata check. CPU-heavy fitting and
+PyBaMM study execution stay in the leased Python worker. This separation keeps the Web service
+small while allowing the worker host to be sized independently for the selected electrochemical
+model and study batch. See `docs/deployment-and-capacity.md` for capacity guidance.
+
+Concept & System Design · Alex.Z

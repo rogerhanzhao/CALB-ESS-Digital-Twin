@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from calb_ess_digital_twin.soh_engine import (
     AgingObservation,
     CalibrationRequest,
+    CalibrationResult,
     ExtrapolationLimits,
     SemiEmpiricalParameters,
     SplitRole,
@@ -105,6 +106,14 @@ def test_recovers_known_parameters_and_scores_held_out_samples() -> None:
     assert result.metrics.validation_rmse_fraction < 1e-8
     assert result.metrics.jacobian_rank == 3
     assert len(result.observation_fits) == 7
+
+
+def test_calibration_result_cannot_drop_its_dataset_evidence() -> None:
+    artifact = fit_semi_empirical_model(_request()).model_dump(mode="python")
+    artifact["dataset_revision_ids"] = []
+
+    with pytest.raises(ValidationError, match="dataset_revision_ids"):
+        CalibrationResult.model_validate(artifact)
 
 
 def test_validation_points_do_not_expand_training_validity_envelope() -> None:

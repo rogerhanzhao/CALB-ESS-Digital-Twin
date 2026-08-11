@@ -6,8 +6,13 @@ import { CONTRACT_RANGES, parseStandardScenarioInput } from "../lib/scenarios.ts
 const valid = {
   code: "ESS-STD-BASELINE",
   name: "Baseline duty cycle",
+  codeRevision: "abcdef1",
   ambientTemperatureC: 25,
+  cellTemperatureC: 27,
   cyclesPerDay: 1,
+  operatingAvailabilityFraction: 0.95,
+  maxChargeCRate: 0.5,
+  maxDischargeCRate: 0.5,
   depthOfDischarge: 0.9,
   socWindowMin: 0.05,
   socWindowMax: 0.95,
@@ -75,6 +80,23 @@ test("rejects non-finite numbers instead of storing NaN", () => {
 
 test("requires horizonYears to be an integer", () => {
   assert.ok(errorsFor({ horizonYears: 20.5 }).some((e) => e.includes("integer")));
+});
+
+test("requires the physical exposure fields needed by the SOH study", () => {
+  for (const field of [
+    "codeRevision",
+    "cellTemperatureC",
+    "operatingAvailabilityFraction",
+    "maxChargeCRate",
+    "maxDischargeCRate",
+  ]) {
+    assert.ok(errorsFor({ [field]: undefined }).some((e) => e.includes(field)));
+  }
+  assert.ok(
+    errorsFor({ operatingAvailabilityFraction: 1.1 }).some((e) =>
+      e.includes("operatingAvailabilityFraction"),
+    ),
+  );
 });
 
 // A SOC window that is inverted or empty describes no operating range, and a DoD wider than
