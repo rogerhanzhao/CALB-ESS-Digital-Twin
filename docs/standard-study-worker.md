@@ -48,16 +48,18 @@ The SQLite queue and file URI registry are a deterministic developer/pilot adapt
 deployment must translate the same payload and artifact records to the control-plane queue,
 database, and object-storage bindings; it must not expose a worker's local file URI to clients.
 
-## Next integration boundary
+## Hosted control-plane publisher
 
-The web control plane still needs a transport adapter that:
+`POST /api/standard-studies` now constructs contract `3.0` only from an authenticated owner's
+released product, released standard scenario, and approved calibration. The caller supplies an
+explicit ISO study start date and a required idempotency key. Before queueing, the publisher
+re-reads the exact calibration bytes from private R2, verifies size and SHA-256, validates the
+generated schemas, and checks every embedded identity against D1.
 
-1. constructs contract `3.0` only from a released standard scenario and an approved or explicitly
-   exploratory calibration artifact;
-2. submits the exact JSON payload under an idempotency key;
-3. mirrors lease, heartbeat, progress, terminal result, and artifact registrations into `runs` and
-   `run_artifacts`;
-4. serves bundle files through authorized object-storage URLs.
+The exact job payload is stored at `runs/{run-id}/job-payload.json`; D1 receives the linked
+scenario and queued run in one batch. If persistence loses a race, the newly written object is
+removed. The hosted worker transport then mirrors lease, heartbeat, terminal result, and all four
+artifact registrations into `runs` and `run_artifacts`.
 
-Until that adapter lands, the web submission route remains a demonstrator and must not label its
-output as a standard-study result.
+The older `POST /api/simulations` route remains a visibly separate demonstrator for ad-hoc UI
+exploration. It cannot label or promote its output as a standard-study result.

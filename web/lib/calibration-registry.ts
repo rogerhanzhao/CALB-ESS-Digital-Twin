@@ -81,22 +81,30 @@ export function parseCalibrationRegistration(value: unknown): Parsed<Calibration
   if (!productId || productId.length > 80) {
     errors.push("productId is required and must be at most 80 characters");
   }
-  if (!validateArtifact(value.artifact)) {
-    errors.push(
-      ...((validateArtifact.errors ?? []).map(
-        (error) => `artifact${error.instancePath || "/"} ${error.message ?? "is invalid"}`,
-      )),
-    );
-  }
+  const parsedArtifact = parseCalibrationArtifact(value.artifact);
+  if (!parsedArtifact.ok) errors.push(...parsedArtifact.errors);
   if (errors.length) return { ok: false, errors };
-  const artifact = value.artifact as CalibrationArtifact;
+  const artifact = parsedArtifact.ok ? parsedArtifact.value : (value.artifact as CalibrationArtifact);
+  return { ok: true, value: { productId, artifact } };
+}
+
+export function parseCalibrationArtifact(value: unknown): Parsed<CalibrationArtifact> {
+  if (!validateArtifact(value)) {
+    return {
+      ok: false,
+      errors: (validateArtifact.errors ?? []).map(
+        (error) => `artifact${error.instancePath || "/"} ${error.message ?? "is invalid"}`,
+      ),
+    };
+  }
+  const artifact = value as CalibrationArtifact;
   if (artifact.dataset_revision_ids.length === 0) {
     return { ok: false, errors: ["artifact requires at least one dataset revision"] };
   }
   if (new Set(artifact.dataset_revision_ids).size !== artifact.dataset_revision_ids.length) {
     return { ok: false, errors: ["artifact dataset_revision_ids must be unique"] };
   }
-  return { ok: true, value: { productId, artifact } };
+  return { ok: true, value: artifact };
 }
 
 export function canonicalArtifactBytes(artifact: CalibrationArtifact): Uint8Array {
