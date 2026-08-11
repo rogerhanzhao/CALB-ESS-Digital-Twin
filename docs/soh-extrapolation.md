@@ -29,6 +29,8 @@ not silently duplicate assumptions.
   is retained as raw diagnostic evidence, never clipped to zero, and blocks engineering review.
 - Exposure dimensions and years must be monotone. Historical exposure cannot decrease between
   result points.
+- Planned cumulative cycle count may be fractional (for example, half a cycle per day over one
+  year); it is retained as supplied and never silently rounded to a whole test-cycle index.
 
 ## Warranty boundary
 
