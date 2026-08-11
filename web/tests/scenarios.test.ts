@@ -5,7 +5,6 @@ import { CONTRACT_RANGES, parseStandardScenarioInput } from "../lib/scenarios.ts
 
 const valid = {
   code: "ESS-STD-BASELINE",
-  version: 1,
   name: "Baseline duty cycle",
   ambientTemperatureC: 25,
   cyclesPerDay: 1,
@@ -13,6 +12,8 @@ const valid = {
   socWindowMin: 0.05,
   socWindowMax: 0.95,
   horizonYears: 20,
+  initialSoc: 0.5,
+  endOfLifeFraction: 0.8,
 };
 
 function errorsFor(patch: Record<string, unknown>): string[] {
@@ -41,8 +42,10 @@ test("rejects codes that are not opaque stable identifiers", () => {
   }
 });
 
-test("requires a monotonic integer version of at least 1", () => {
-  for (const version of [0, -1, 1.5, "1", null]) {
+// Version is assigned server-side so a caller cannot publish V9 and then V1 for the same
+// family. Accepting a submitted version would make the sequence a claim rather than a fact.
+test("rejects a caller-supplied version", () => {
+  for (const version of [1, 9, 0, "2"]) {
     assert.ok(errorsFor({ version }).some((e) => e.includes("version")), `accepted ${JSON.stringify(version)}`);
   }
 });
@@ -98,7 +101,7 @@ test("allows a calendar-only scenario with no cycling and no depth", () => {
 });
 
 test("reports every problem at once rather than the first", () => {
-  const errors = errorsFor({ code: "bad", version: 0, name: "", horizonYears: 99 });
+  const errors = errorsFor({ code: "bad", version: 3, name: "", horizonYears: 99 });
   assert.ok(errors.length >= 4, `expected several errors, got ${JSON.stringify(errors)}`);
 });
 
@@ -115,4 +118,26 @@ test("accepts a 5-95% window at 90% depth despite floating point subtraction", (
 test("the tolerance does not admit a depth genuinely wider than the window", () => {
   const errors = errorsFor({ socWindowMin: 0.05, socWindowMax: 0.95, depthOfDischarge: 0.91 });
   assert.ok(errors.some((e) => e.includes("SOC window")), errors.join("; "));
+});
+
+test("requires initialSoc and endOfLifeFraction so the record is executable", () => {
+  for (const field of ["initialSoc", "endOfLifeFraction"]) {
+    assert.ok(errorsFor({ [field]: undefined }).some((e) => e.includes(field)), `omitted ${field} accepted`);
+  }
+  assert.ok(errorsFor({ endOfLifeFraction: 0.4 }).some((e) => e.includes("endOfLifeFraction")));
+  assert.ok(errorsFor({ endOfLifeFraction: 0.99 }).some((e) => e.includes("endOfLifeFraction")));
+});
+
+// A start point outside the operating window describes a cell that begins outside the range
+// the scenario claims to run in.
+test("rejects an initialSoc outside the declared SOC window", () => {
+  assert.ok(errorsFor({ initialSoc: 0.99 }).some((e) => e.includes("initialSoc")));
+  assert.ok(errorsFor({ initialSoc: 0.01 }).some((e) => e.includes("initialSoc")));
+});
+
+test("accepts an initialSoc exactly on the window edge", () => {
+  for (const initialSoc of [0.05, 0.95]) {
+    const result = parseStandardScenarioInput({ ...valid, initialSoc });
+    assert.equal(result.ok, true, result.ok ? "" : result.errors.join("; "));
+  }
 });

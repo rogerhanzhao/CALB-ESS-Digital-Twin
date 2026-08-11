@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { standardScenarios } from "../../../db/schema";
 import { parseStandardScenarioInput } from "../../../lib/scenarios";
@@ -24,20 +24,32 @@ export async function POST(request: Request) {
   const parsed = parseStandardScenarioInput(payload);
   if (!parsed.ok) return Response.json({ error: "invalid request", details: parsed.errors }, { status: 400 });
 
+  const db = getDb();
+  // Version is assigned, not accepted. A submitted version only has to be unique to pass an
+  // index, which allowed publishing V9 and then V1 for the same family -- a history that
+  // reads as progression while being nothing of the sort.
+  const [highest] = await db
+    .select({ version: max(standardScenarios.version) })
+    .from(standardScenarios)
+    .where(and(eq(standardScenarios.userId, owner), eq(standardScenarios.code, parsed.value.code)));
+  const version = (highest?.version ?? 0) + 1;
+
   const scenario = {
     id: crypto.randomUUID(),
     userId: owner,
     ...parsed.value,
+    version,
     status: "draft" as const,
     createdAt: new Date().toISOString(),
   };
-  // The unique index is the authority, not a prior SELECT: a check-then-insert would still
-  // race, and redefining an existing version is exactly what must never succeed quietly.
+  // D1 has no interactive transactions, so the read above cannot be atomic with this write.
+  // The unique index is what actually holds the line: two concurrent publishes compute the
+  // same next version and one of them loses here rather than quietly sharing a version.
   try {
-    await getDb().insert(standardScenarios).values(scenario);
+    await db.insert(standardScenarios).values(scenario);
   } catch {
     return Response.json(
-      { error: "This scenario code and version already exists. Publish a new version instead of redefining one." },
+      { error: "A concurrent publish claimed this version. Retry to take the next one." },
       { status: 409 },
     );
   }

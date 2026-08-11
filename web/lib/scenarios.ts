@@ -12,23 +12,47 @@ import type { ScenarioInput } from "@contracts/generated/contracts";
 type ContractRanges = {
   [K in keyof Pick<
     ScenarioInput,
-    "ambient_temperature_c" | "cycles_per_day" | "depth_of_discharge" | "horizon_years"
+    | "ambient_temperature_c"
+    | "cycles_per_day"
+    | "depth_of_discharge"
+    | "horizon_years"
+    | "initial_soc"
+    | "end_of_life_fraction"
   >]: { min: number; max: number };
 };
 
+/**
+ * The numbers are restated here because TypeScript cannot read them from the Python model,
+ * but they are not trusted on faith: `tests/contract-ranges.test.ts` reads
+ * `contracts/generated/job.schema.json` and fails if any bound here disagrees with it.
+ * Typing alone only kept the field names honest, which is what a review of this file caught.
+ */
 export const CONTRACT_RANGES: ContractRanges = {
   ambient_temperature_c: { min: -20, max: 60 },
   cycles_per_day: { min: 0, max: 3 },
   depth_of_discharge: { min: 0, max: 1 },
   horizon_years: { min: 1, max: 25 },
+  initial_soc: { min: 0, max: 1 },
+  end_of_life_fraction: { min: 0.5, max: 0.95 },
 };
 
 /** Opaque family identifier. Deliberately permissive about meaning, strict about shape. */
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9-]{2,63}$/;
 
+/**
+ * Physical fractions are not exact decimals. `0.95 - 0.05` is 0.8999999999999999 in IEEE
+ * 754, so an exact comparison rejects a 5-95% window at 90% depth -- the most ordinary
+ * configuration there is. A rounding artifact must not read as an invalid scenario.
+ */
+const SOC_TOLERANCE = 1e-9;
+
+/**
+ * Note the absence of `version`. It is assigned by the server as one past the current
+ * maximum for the code, so a caller cannot publish V9 and then later V1 for the same family
+ * -- which the unique index alone permitted, since it only forbids repeating a version.
+ */
 export type StandardScenarioInput = {
   code: string;
-  version: number;
   name: string;
   ambientTemperatureC: number;
   cyclesPerDay: number;
@@ -36,6 +60,8 @@ export type StandardScenarioInput = {
   socWindowMin: number;
   socWindowMax: number;
   horizonYears: number;
+  initialSoc: number;
+  endOfLifeFraction: number;
 };
 
 export type Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
@@ -69,9 +95,8 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
     errors.push("code must be 3-64 characters of A-Z, 0-9 and '-', starting alphanumeric");
   }
 
-  const version = body.version;
-  if (!Number.isInteger(version) || (version as number) < 1) {
-    errors.push("version must be an integer of at least 1");
+  if (body.version !== undefined) {
+    errors.push("version is assigned by the server and must not be supplied");
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -82,6 +107,8 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
   const depthOfDischarge = numberIn(body, "depthOfDischarge", CONTRACT_RANGES.depth_of_discharge, errors);
   const socWindowMin = numberIn(body, "socWindowMin", { min: 0, max: 1 }, errors);
   const socWindowMax = numberIn(body, "socWindowMax", { min: 0, max: 1 }, errors);
+  const initialSoc = numberIn(body, "initialSoc", CONTRACT_RANGES.initial_soc, errors);
+  const endOfLifeFraction = numberIn(body, "endOfLifeFraction", CONTRACT_RANGES.end_of_life_fraction, errors);
 
   const horizonYears = body.horizonYears;
   if (!Number.isInteger(horizonYears)) {
@@ -98,7 +125,6 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
   // exact comparison rejects a 5-95% window at 90% DoD -- the most ordinary configuration
   // there is. These are physical fractions, not exact decimals, and a rounding artifact
   // must not read as an invalid scenario.
-  const SOC_TOLERANCE = 1e-9;
   if (Number.isFinite(socWindowMin) && Number.isFinite(socWindowMax)) {
     if (socWindowMin >= socWindowMax) {
       errors.push("socWindowMin must be strictly below socWindowMax");
@@ -116,12 +142,19 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
     errors.push("depthOfDischarge must be positive when cyclesPerDay is positive");
   }
 
+  // The declared start point has to sit inside the declared operating window, or the
+  // scenario describes a cell that begins outside the range it claims to run in.
+  if (Number.isFinite(initialSoc) && Number.isFinite(socWindowMin) && Number.isFinite(socWindowMax)) {
+    if (initialSoc < socWindowMin - SOC_TOLERANCE || initialSoc > socWindowMax + SOC_TOLERANCE) {
+      errors.push("initialSoc must lie within the declared SOC window");
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
     value: {
       code,
-      version: version as number,
       name,
       ambientTemperatureC,
       cyclesPerDay,
@@ -129,6 +162,8 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
       socWindowMin,
       socWindowMax,
       horizonYears: horizonYears as number,
+      initialSoc,
+      endOfLifeFraction,
     },
   };
 }

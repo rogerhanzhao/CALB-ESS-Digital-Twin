@@ -92,7 +92,6 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
   check("ck_dataset_revisions_validation_status", sql`${table.validationStatus} in ('pending', 'pass', 'warning', 'reject')`),
 ]);
 
-/** What is being studied. Never mutated in place: an edit produces a new row. */
 /**
  * A fitted model plus the range it was fitted over.
  *
@@ -115,8 +114,8 @@ export const calibrations = sqliteTable("calibrations", {
   codeRevision: text("code_revision").notNull(),
   /** Reported fit error against the input revisions. Null until the fit has been scored. */
   fitError: real("fit_error"),
-  temperatureMinC: real("temperature_min_c"),
-  temperatureMaxC: real("temperature_max_c"),
+  cellTemperatureMinC: real("cell_temperature_min_c"),
+  cellTemperatureMaxC: real("cell_temperature_max_c"),
   chargeRateMinC: real("charge_rate_min_c"),
   chargeRateMaxC: real("charge_rate_max_c"),
   dischargeRateMinC: real("discharge_rate_min_c"),
@@ -180,10 +179,25 @@ export const standardScenarios = sqliteTable("standard_scenarios", {
   ambientTemperatureC: real("ambient_temperature_c").notNull(),
   cyclesPerDay: real("cycles_per_day").notNull(),
   depthOfDischarge: real("depth_of_discharge").notNull(),
-  /** Operating SOC window. Stored explicitly because DoD alone does not locate it. */
+  /**
+   * Operating SOC window. Stored explicitly because DoD alone does not locate it.
+   *
+   * This is control-plane metadata: `ScenarioInput` has no SOC window, so execution cannot
+   * consume it today. It is used to judge a duty cycle against a calibration envelope. The
+   * contract gap is real and is raised on the review thread rather than papered over.
+   */
   socWindowMin: real("soc_window_min").notNull(),
   socWindowMax: real("soc_window_max").notNull(),
   horizonYears: integer("horizon_years").notNull(),
+  /**
+   * Carried so the record is a complete execution template.
+   *
+   * `ScenarioInput` requires both, so a standard scenario lacking them could not construct
+   * an executable job without inventing values at submission time -- and an invented input
+   * is exactly what must never reach a result that claims to be reproducible.
+   */
+  initialSoc: real("initial_soc").notNull(),
+  endOfLifeFraction: real("end_of_life_fraction").notNull(),
   status: text("status", { enum: SCENARIO_STATUSES }).notNull().default("draft"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
@@ -192,6 +206,7 @@ export const standardScenarios = sqliteTable("standard_scenarios", {
   check("ck_standard_scenarios_status", sql`${table.status} in ('draft', 'released', 'superseded')`),
 ]);
 
+/** What is being studied. Never mutated in place: an edit produces a new row. */
 export const scenarios = sqliteTable("scenarios", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
