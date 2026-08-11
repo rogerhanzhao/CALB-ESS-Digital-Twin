@@ -74,20 +74,27 @@ const DAYS_PER_YEAR = 365;
 const TOLERANCE = 1e-9;
 
 /**
- * NaN is the only value that cannot be compared; infinities can.
+ * A duty value must be finite to be judged. Comparability is not physical validity.
  *
- * `Infinity > limit` is true and `-Infinity < limit` is true, so an infinite quantity has a
- * meaningful and correct verdict: it is outside any finite bound. NaN is different --
- * every comparison against it is false, so an unguarded check reads as "no breach" for a
- * value nobody could evaluate. Only that case is uncomputable.
+ * An earlier version admitted infinities on the grounds that they compare correctly, which
+ * is true only in one direction. On a ceiling check `-Infinity > limit` is false, so a
+ * negative-infinite exposure produced no breach and the verdict came back `true` with
+ * nothing recorded -- the same confident pass from garbage that the NaN guard was added to
+ * stop, reached through a different door. No infinite quantity describes a duty cycle
+ * anyway, so all non-finite values are uncomputable.
  */
 function comparable(value: number | undefined): value is number {
-  return value !== undefined && !Number.isNaN(value);
+  return value !== undefined && Number.isFinite(value);
 }
 
-/** A bound that is present must also be comparable; a NaN in a bound column is corrupt. */
+/**
+ * A bound that is present must also be finite.
+ *
+ * `null` is how this schema says "unconstrained"; an infinity or NaN sitting in a bound
+ * column is corrupt data, and reading it as absent would quietly widen an approved envelope.
+ */
 function boundsUsable(min: number | null, max: number | null): boolean {
-  return (min === null || !Number.isNaN(min)) && (max === null || !Number.isNaN(max));
+  return (min === null || Number.isFinite(min)) && (max === null || Number.isFinite(max));
 }
 
 function checkRange(
@@ -100,7 +107,7 @@ function checkRange(
 ): void {
   if (min === null && max === null) return;
   if (!boundsUsable(min, max)) {
-    unevaluated.push(`${label} (calibrated bound is not a comparable number)`);
+    unevaluated.push(`${label} (calibrated bound is not a finite number)`);
     return;
   }
   // This guard is the difference between a computed pass and one that merely looks like it.
@@ -124,12 +131,13 @@ function checkCeiling(
   unevaluated: string[],
 ): void {
   if (max === null) return;
-  if (Number.isNaN(max)) {
-    unevaluated.push(`${label} (calibrated bound is not a comparable number)`);
+  if (!Number.isFinite(max)) {
+    unevaluated.push(`${label} (calibrated bound is not a finite number)`);
     return;
   }
-  // Derived quantities inherit NaN from their inputs: a NaN horizon makes the exposure NaN,
-  // and NaN > limit is false. Same trap as above, one step removed.
+  // Derived quantities inherit non-finiteness from their inputs: an infinite or NaN horizon
+  // makes the exposure infinite or NaN, and neither exceeds a finite ceiling. Same trap as
+  // above, one step removed.
   if (!comparable(value)) {
     unevaluated.push(label);
     return;
@@ -153,7 +161,7 @@ export function evaluateValidityEnvelope(
 
   // The whole operating window has to sit inside the calibrated one. Checking only the
   // midpoint, or only one edge, would pass a cycle that spends half its life outside.
-  // Each edge is a one-sided range so it inherits the same NaN guards.
+  // Each edge is a one-sided range so it inherits the same finiteness guards.
   checkRange("SOC window floor", duty.socWindowMin, envelope.socMin, null, breaches, unevaluated);
   checkRange("SOC window ceiling", duty.socWindowMax, null, envelope.socMax, breaches, unevaluated);
 

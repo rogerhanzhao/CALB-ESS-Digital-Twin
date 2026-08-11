@@ -191,11 +191,40 @@ test("the exact reproduction from the review no longer returns within: true", ()
   assert.notEqual(verdict.within, true);
 });
 
-// Infinity is comparable and genuinely exceeds any finite bound, so it gets a real verdict
-// rather than being lumped in with NaN. Pinned so a future guard cannot widen to swallow it.
-test("Infinity in a duty value is a breach, not a pass", () => {
+// An earlier version admitted infinities because they compare correctly -- which holds in
+// only one direction. On a ceiling check `-Infinity > limit` is false, so a negative-infinite
+// exposure produced no breach and the verdict came back `true` with nothing recorded: the
+// same confident pass from garbage as the NaN hole, through a different door. Found in
+// cross-review. Both signs are pinned here.
+test("positive Infinity in a duty value is unevaluated, not a pass", () => {
   const verdict = evaluateValidityEnvelope(envelope, { ...duty, ...cellOk, horizonYears: Infinity });
-  assert.equal(verdict.within, false);
+  assert.equal(verdict.within, null);
+  assert.ok(verdict.unevaluated.some((u) => u.includes("calendar exposure")), verdict.unevaluated.join("; "));
+});
+
+test("negative Infinity in a duty value is unevaluated, not a pass", () => {
+  const verdict = evaluateValidityEnvelope(envelope, { ...duty, ...cellOk, horizonYears: -Infinity });
+  assert.notEqual(verdict.within, true);
+  assert.equal(verdict.within, null);
+  assert.deepEqual(verdict.breaches, []);
+  assert.ok(verdict.unevaluated.some((u) => u.includes("calendar exposure")), verdict.unevaluated.join("; "));
+});
+
+test("the negative-Infinity reproduction from the review no longer passes", () => {
+  const verdict = evaluateValidityEnvelope(
+    { ...unconstrained, socMin: 0.05, socMax: 0.95, maxCalendarDays: 7300, maxCycles: 8000, maxEquivalentFullCycles: 7000 },
+    { ...duty, horizonYears: -Infinity },
+  );
+  assert.notEqual(verdict.within, true);
+});
+
+test("an infinite calibration bound is corrupt, not unconstrained", () => {
+  const verdict = evaluateValidityEnvelope(
+    { ...unconstrained, maxCycles: Infinity },
+    { ...duty, ...cellOk },
+  );
+  assert.equal(verdict.within, null);
+  assert.ok(verdict.unevaluated.some((u) => u.includes("not a finite number")), verdict.unevaluated.join("; "));
 });
 
 // A NaN stored in a bound column is corrupt data, not an absent constraint. Treating it as
@@ -204,10 +233,10 @@ test("a non-finite calibration bound is uncomputable, not unconstrained", () => 
   const corrupt: ValidityEnvelope = { ...unconstrained, cellTemperatureMaxC: NaN };
   const verdict = evaluateValidityEnvelope(corrupt, { ...duty, cellTemperatureC: 25 });
   assert.equal(verdict.within, null);
-  assert.ok(verdict.unevaluated.some((u) => u.includes("not a comparable number")), verdict.unevaluated.join("; "));
+  assert.ok(verdict.unevaluated.some((u) => u.includes("not a finite number")), verdict.unevaluated.join("; "));
 
   const corruptCeiling: ValidityEnvelope = { ...unconstrained, maxCycles: NaN };
   const ceilingVerdict = evaluateValidityEnvelope(corruptCeiling, { ...duty, ...cellOk });
   assert.equal(ceilingVerdict.within, null);
-  assert.ok(ceilingVerdict.unevaluated.some((u) => u.includes("not a comparable number")));
+  assert.ok(ceilingVerdict.unevaluated.some((u) => u.includes("not a finite number")));
 });
