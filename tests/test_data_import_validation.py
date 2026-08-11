@@ -12,7 +12,9 @@ from pydantic import ValidationError
 from calb_ess_digital_twin.cell_database import (
     ColumnMapping,
     CurrentSign,
+    CycleMetricPolicy,
     ImportManifest,
+    StepRole,
     ValidationLevel,
     ValidationPolicy,
     validate_csv_import,
@@ -239,6 +241,11 @@ def test_cli_creates_new_revision_artifacts(
         "manifest": _manifest(source).model_dump(mode="json"),
         "mappings": [mapping.model_dump(mode="json") for mapping in _mappings()],
         "policy": _policy().model_dump(mode="json"),
+        "cycle_metric_policy": CycleMetricPolicy(
+            nominal_capacity_ah=2.0,
+            step_roles={1: StepRole.CHARGE, 2: StepRole.REST, 3: StepRole.DISCHARGE},
+            full_cycle_sequence=(StepRole.CHARGE, StepRole.REST, StepRole.DISCHARGE),
+        ).model_dump(mode="json"),
     }
     configuration.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     monkeypatch.setattr(
@@ -252,3 +259,33 @@ def test_cli_creates_new_revision_artifacts(
     assert exit_code == 0
     assert (output / "canonical.csv").is_file()
     assert (output / "validation-report.json").is_file()
+    assert (output / "cycle-metrics.json").is_file()
+
+
+def test_cli_does_not_leave_partial_revision_when_metric_derivation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _write_csv(tmp_path)
+    configuration = tmp_path / "configuration.yaml"
+    output = tmp_path / "revision-invalid"
+    payload = {
+        "manifest": _manifest(source).model_dump(mode="json"),
+        "mappings": [mapping.model_dump(mode="json") for mapping in _mappings()],
+        "policy": _policy().model_dump(mode="json"),
+        "cycle_metric_policy": CycleMetricPolicy(
+            nominal_capacity_ah=2.0,
+            step_roles={1: StepRole.CHARGE, 2: StepRole.REST},
+            full_cycle_sequence=(StepRole.CHARGE, StepRole.REST),
+        ).model_dump(mode="json"),
+    }
+    configuration.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["calb-validate-test-data", str(source), str(configuration), str(output)],
+    )
+
+    with pytest.raises(ValueError, match="absent from test plan"):
+        import_cli_main()
+
+    assert output.exists() is False

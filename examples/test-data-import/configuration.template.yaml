@@ -53,3 +53,14 @@ policy:
   temperature_max_c: 0
   irregular_interval_fraction: 0.10
   gap_interval_multiplier: 3.0
+
+# Required when cycle-level derived metrics are requested. Step roles and sequence must match the
+# approved test plan; do not infer them from current direction alone.
+cycle_metric_policy:
+  nominal_capacity_ah: 0  # Replace with the approved product revision value.
+  step_roles:
+    1: charge
+    2: rest
+    3: discharge
+    4: rest
+  full_cycle_sequence: [charge, rest, discharge, rest]

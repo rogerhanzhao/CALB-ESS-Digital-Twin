@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
+from .cycle_metrics import CycleMetricPolicy, derive_cycle_metrics
 from .import_validation import (
     ColumnMapping,
     ImportManifest,
+    TestType,
     ValidationLevel,
     ValidationPolicy,
     validate_csv_import,
@@ -25,6 +27,16 @@ class ImportConfiguration(BaseModel):
     manifest: ImportManifest
     mappings: list[ColumnMapping]
     policy: ValidationPolicy
+    cycle_metric_policy: CycleMetricPolicy | None = None
+
+    @model_validator(mode="after")
+    def cycle_metrics_only_apply_to_cycle_aging(self) -> ImportConfiguration:
+        if (
+            self.cycle_metric_policy is not None
+            and self.manifest.test_type != TestType.CYCLE_AGING
+        ):
+            raise ValueError("cycle_metric_policy is only valid for cycle_aging imports")
+        return self
 
 
 def load_configuration(path: Path) -> ImportConfiguration:
@@ -53,6 +65,10 @@ def main() -> int:
         configuration.policy,
     )
 
+    cycle_report = None
+    if imported.normalized is not None and configuration.cycle_metric_policy is not None:
+        cycle_report = derive_cycle_metrics(imported.normalized, configuration.cycle_metric_policy)
+
     args.output_directory.mkdir(parents=True)
     report_path = args.output_directory / "validation-report.json"
     report_path.write_text(
@@ -61,6 +77,11 @@ def main() -> int:
     )
     if imported.normalized is not None:
         imported.normalized.to_csv(args.output_directory / "canonical.csv", index=False)
+        if cycle_report is not None:
+            (args.output_directory / "cycle-metrics.json").write_text(
+                json.dumps(cycle_report.model_dump(mode="json"), indent=2) + "\n",
+                encoding="utf-8",
+            )
 
     print(f"Validation outcome: {imported.report.outcome}")
     print(f"Report: {report_path}")

@@ -223,3 +223,9 @@ disposition, excluded-row cleaning revisions, test-specific derived metrics, and
 artifact registration remain separate follow-up capabilities. The template under
 `examples/test-data-import/` is pending Alex.Z acceptance with the first real test-plan mapping and
 must not be treated as an approved CALB limit set.
+
+The cycle-ageing follow-up derives capacity and energy by trapezoidal integration of measured time,
+current, and voltage. Equivalent full cycles use a test-plan-supplied nominal capacity. Step roles
+and the required full-cycle sequence are explicit configuration: missing segments mark a cycle as
+partial, and an unknown step is rejected rather than inferred. Tester-reported capacity remains a
+separate reconciliation value.
