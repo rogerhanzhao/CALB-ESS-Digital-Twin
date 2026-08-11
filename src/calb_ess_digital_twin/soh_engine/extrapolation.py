@@ -117,6 +117,7 @@ class ExtrapolationResult(BaseModel):
     calibration_model_version: str
     calibration_approval_status: CalibrationApprovalStatus
     product_revision: str
+    conditions: StandardScenarioConditions
     points: list[ExtrapolationPoint]
     all_points_within_validity_envelope: bool
     all_predictions_physically_valid: bool
@@ -184,6 +185,7 @@ def extrapolate_soh(request: ExtrapolationRequest) -> ExtrapolationResult:
         calibration_model_version=request.calibration.model_version,
         calibration_approval_status=request.calibration_approval_status,
         product_revision=request.conditions.product_revision,
+        conditions=request.conditions,
         points=points,
         all_points_within_validity_envelope=all_within,
         all_predictions_physically_valid=all_physical,
