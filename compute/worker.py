@@ -14,6 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, Thread
 
+from calb_ess_digital_twin.cell_database import (
+    DatasetRevisionRequest,
+    verify_dataset_revision_bundle,
+    write_dataset_revision_bundle,
+)
 from calb_ess_digital_twin.pybamm_models.runner import run_spme_reference
 from calb_ess_digital_twin.standard_study import (
     StandardStudyRequest,
@@ -29,6 +34,8 @@ from calb_ess_digital_twin.study_comparison import (
 from contracts.models import (
     ComparisonJobPayload,
     ComparisonJobResult,
+    DatasetRevisionJobPayload,
+    DatasetRevisionJobResult,
     JobPayload,
     RunResult,
     Uncertainty,
@@ -38,8 +45,8 @@ from .remote_store import RemoteJobStore, RemoteTransportError
 from .store import ArtifactRegistration, JobStore
 
 WorkerStore = JobStore | RemoteJobStore
-WorkerPayload = JobPayload | ComparisonJobPayload
-WorkerResult = RunResult | ComparisonJobResult
+WorkerPayload = JobPayload | ComparisonJobPayload | DatasetRevisionJobPayload
+WorkerResult = RunResult | ComparisonJobResult | DatasetRevisionJobResult
 
 
 class LeaseLostError(RuntimeError):
@@ -72,11 +79,17 @@ def execute_job(payload: JobPayload) -> RunResult:
     )
 
 
-def execute_job_with_artifacts(payload: WorkerPayload, artifact_root: Path) -> ExecutionOutcome:
+def execute_job_with_artifacts(
+    payload: WorkerPayload, artifact_root: Path, source_path: Path | None = None
+) -> ExecutionOutcome:
     """Execute one job and return result metadata plus immutable artifact registrations."""
 
     if isinstance(payload, ComparisonJobPayload):
         return _execute_comparison_job(payload, artifact_root)
+    if isinstance(payload, DatasetRevisionJobPayload):
+        if source_path is None:
+            raise ValueError("dataset-revision jobs require exact local source evidence")
+        return _execute_dataset_revision_job(payload, artifact_root, source_path)
     if payload.engine != "standard-study":
         return ExecutionOutcome(result=execute_job(payload))
     request = StandardStudyRequest.model_validate(payload.standard_study_request)
@@ -176,6 +189,57 @@ def _execute_comparison_job(
     return ExecutionOutcome(result=job_result, artifacts=tuple(registrations))
 
 
+def _execute_dataset_revision_job(
+    payload: DatasetRevisionJobPayload, artifact_root: Path, source_path: Path
+) -> ExecutionOutcome:
+    request = DatasetRevisionRequest.model_validate(payload.dataset_revision_request)
+    if request.revision_id != str(payload.job_id):
+        raise ValueError("dataset revision request identity does not match job")
+    if request.code_revision != payload.code_revision:
+        raise ValueError("dataset revision code revision does not match job")
+    if request.manifest.file_name != payload.source_file_name:
+        raise ValueError("dataset revision source file name does not match job")
+    if request.manifest.file_sha256 != payload.source_checksum_sha256:
+        raise ValueError("dataset revision source checksum does not match job")
+    bundle_directory = artifact_root.resolve() / str(payload.job_id) / "dataset-revision"
+    if bundle_directory.exists():
+        revision_result, _ = verify_dataset_revision_bundle(request, bundle_directory)
+    else:
+        revision_result, _ = write_dataset_revision_bundle(
+            source_path, request, bundle_directory
+        )
+    registrations: list[ArtifactRegistration] = []
+    checksums: dict[str, str] = {}
+    for path in sorted(bundle_directory.iterdir()):
+        content = path.read_bytes()
+        checksum = hashlib.sha256(content).hexdigest()
+        checksums[path.name] = checksum
+        registrations.append(
+            ArtifactRegistration(
+                kind=path.name,
+                uri=path.resolve().as_uri(),
+                content_type=(
+                    "text/csv; charset=utf-8"
+                    if path.suffix == ".csv"
+                    else "application/json"
+                ),
+                size_bytes=len(content),
+                checksum_sha256=checksum,
+            )
+        )
+    result = DatasetRevisionJobResult(
+        job_id=payload.job_id,
+        code_revision=payload.code_revision,
+        status="completed",
+        revision_id=request.revision_id,
+        validation_outcome=revision_result.validation_outcome.value,
+        canonical_available=revision_result.canonical_available,
+        cycle_metrics_available=revision_result.cycle_metrics_available,
+        artifact_checksums=checksums,
+    )
+    return ExecutionOutcome(result=result, artifacts=tuple(registrations))
+
+
 @contextmanager
 def keep_lease_alive(
     store: WorkerStore,
@@ -215,7 +279,10 @@ def run_once(
     heartbeat_interval: float | None = None,
     artifact_root: Path | None = None,
 ) -> bool:
-    row = store.claim(worker_id, lease_seconds=lease_seconds)
+    try:
+        row = store.claim(worker_id, lease_seconds=lease_seconds)
+    except RemoteTransportError:
+        return False
     if row is None:
         return False
     job_id = row["id"]
@@ -224,6 +291,8 @@ def run_once(
         payload: WorkerPayload
         if raw_payload.get("engine") == "study-comparison":
             payload = ComparisonJobPayload.model_validate_json(row["payload"])
+        elif raw_payload.get("engine") == "dataset-revision":
+            payload = DatasetRevisionJobPayload.model_validate_json(row["payload"])
         else:
             payload = JobPayload.model_validate_json(row["payload"])
         interval = heartbeat_interval or max(lease_seconds / 3, 1)
@@ -234,7 +303,8 @@ def run_once(
                 output_root = store.local_artifact_root
             else:
                 output_root = store.path.parent / "artifacts"
-            outcome = execute_job_with_artifacts(payload, output_root)
+            source_path = Path(row["source_path"]) if row.get("source_path") else None
+            outcome = execute_job_with_artifacts(payload, output_root, source_path)
         if lease_lost.is_set():
             raise LeaseLostError("worker lost its lease during execution")
         if not store.complete(
@@ -270,7 +340,7 @@ def main() -> None:
     parser.add_argument("--remote-base-url")
     parser.add_argument(
         "--remote-job-kind",
-        choices=("standard-study", "study-comparison"),
+        choices=("standard-study", "study-comparison", "dataset-revision"),
         default="standard-study",
         help="Select the independent hosted queue polled by this worker process.",
     )

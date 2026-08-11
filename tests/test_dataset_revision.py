@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 import pandas as pd
 import pytest
@@ -18,6 +19,8 @@ from calb_ess_digital_twin.cell_database import (
     write_dataset_revision_bundle,
 )
 from calb_ess_digital_twin.cell_database.import_validation import file_sha256
+from compute.worker import execute_job_with_artifacts
+from contracts.models import DatasetRevisionJobPayload
 
 
 def _source(path: Path, *, voltage: float = 3.2) -> Path:
@@ -146,3 +149,32 @@ def test_cycle_revision_requires_explicit_step_policy(tmp_path: Path) -> None:
     values["cycle_metric_policy"] = None
     with pytest.raises(ValueError, match="cycle ageing"):
         DatasetRevisionRequest.model_validate(values)
+
+
+def test_worker_executes_dataset_revision_as_independent_job(tmp_path: Path) -> None:
+    source = _source(tmp_path)
+    values = _request(source).model_dump()
+    job_id = UUID("1f27154f-3392-48aa-a004-5b18315b0339")
+    values["revision_id"] = str(job_id)
+    request = DatasetRevisionRequest.model_validate(values)
+    payload = DatasetRevisionJobPayload(
+        job_id=job_id,
+        user_id="alex",
+        code_revision=request.code_revision,
+        source_file_name=source.name,
+        source_checksum_sha256=file_sha256(source),
+        dataset_revision_request=request.model_dump(mode="json"),
+    )
+
+    outcome = execute_job_with_artifacts(payload, tmp_path / "artifacts", source)
+
+    assert outcome.result.engine == "dataset-revision"
+    assert outcome.result.validation_outcome == "pass"
+    assert {artifact["kind"] for artifact in outcome.artifacts} == {
+        "canonical.csv",
+        "cycle-metrics.json",
+        "dataset-revision-result.json",
+        "revision-manifest.json",
+        "revision-request.json",
+        "validation-report.json",
+    }

@@ -13,6 +13,7 @@ export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as c
 export const SCENARIO_STATUSES = ["draft", "released", "superseded"] as const;
 export const CALIBRATION_STATUSES = ["draft", "under_review", "approved", "rejected", "superseded"] as const;
 export const ENGINEERING_REVIEW_DECISIONS = ["approved", "changes_requested", "rejected"] as const;
+export const VALIDATION_POLICY_STATUSES = ["draft", "approved", "retired"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -90,11 +91,61 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
   rowCount: integer("row_count"),
   validationStatus: text("validation_status", { enum: VALIDATION_STATUSES }).notNull().default("pending"),
   validationReportUri: text("validation_report_uri"),
+  jobContractVersion: text("job_contract_version"),
+  requestObjectKey: text("request_object_key"),
+  requestChecksumSha256: text("request_checksum_sha256"),
+  processingStatus: text("processing_status").notNull().default("queued"),
+  attempt: integer("attempt").notNull().default(0),
+  leaseExpiresAt: text("lease_expires_at"),
+  heartbeatAt: text("heartbeat_at"),
+  workerId: text("worker_id"),
+  error: text("error"),
+  totalAbsoluteThroughputAh: real("total_absolute_throughput_ah"),
+  totalEquivalentFullCycles: real("total_equivalent_full_cycles"),
+  idempotencyKey: text("idempotency_key"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("uq_dataset_revisions_dataset_revision").on(table.datasetId, table.revision),
   index("idx_dataset_revisions_user_created").on(table.userId, table.createdAt),
+  index("idx_dataset_revisions_status_lease").on(table.processingStatus, table.leaseExpiresAt),
+  uniqueIndex("uq_dataset_revisions_owner_idempotency").on(table.userId, table.idempotencyKey),
   check("ck_dataset_revisions_validation_status", sql`${table.validationStatus} in ('pending', 'pass', 'warning', 'reject')`),
+  check("ck_dataset_revisions_processing_status", sql`${table.processingStatus} in ('queued', 'running', 'completed', 'failed', 'cancelled')`),
+]);
+
+export const datasetRevisionArtifacts = sqliteTable("dataset_revision_artifacts", {
+  id: text("id").primaryKey(),
+  revisionId: text("revision_id").notNull().references(() => datasetRevisions.id),
+  kind: text("kind").notNull(),
+  uri: text("uri").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  checksum: text("checksum").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_dataset_revision_artifacts_revision").on(table.revisionId),
+  uniqueIndex("uq_dataset_revision_artifacts_kind").on(table.revisionId, table.kind),
+]);
+
+export const datasetValidationPolicies = sqliteTable("dataset_validation_policies", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  version: text("version").notNull(),
+  voltageMinV: real("voltage_min_v").notNull(),
+  voltageMaxV: real("voltage_max_v").notNull(),
+  absoluteCurrentMaxA: real("absolute_current_max_a").notNull(),
+  temperatureMinC: real("temperature_min_c").notNull(),
+  temperatureMaxC: real("temperature_max_c").notNull(),
+  irregularIntervalFraction: real("irregular_interval_fraction").notNull(),
+  gapIntervalMultiplier: real("gap_interval_multiplier").notNull(),
+  status: text("status", { enum: VALIDATION_POLICY_STATUSES }).notNull().default("draft"),
+  approvedAt: text("approved_at"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_dataset_validation_policy_version").on(table.userId, table.productId, table.version),
+  index("idx_dataset_validation_policy_product").on(table.productId, table.status),
+  check("ck_dataset_validation_policy_status", sql`${table.status} in ('draft', 'approved', 'retired')`),
 ]);
 
 /**

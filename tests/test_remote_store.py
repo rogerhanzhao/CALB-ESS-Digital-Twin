@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -13,9 +14,15 @@ from contracts.models import JobPayload, ScenarioInput
 
 
 class FakeResponse:
-    def __init__(self, status: int, payload: dict | None = None):
+    def __init__(self, status: int, payload: dict | bytes | None = None):
         self.status = status
-        self.content = b"" if payload is None else json.dumps(payload).encode()
+        self.content = (
+            b""
+            if payload is None
+            else payload
+            if isinstance(payload, bytes)
+            else json.dumps(payload).encode()
+        )
 
     def __enter__(self):
         return self
@@ -173,6 +180,44 @@ def test_comparison_worker_uses_independent_routes_and_artifacts(
     )
     assert store.complete(job_id, "worker-a", {}, registrations)
     assert all("/api/worker/comparisons/" in url for url in urls)
+
+
+def test_dataset_revision_claim_downloads_and_verifies_private_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_id = str(uuid4())
+    source = b"timestamp,voltage_v\n2026-01-01T00:00:00Z,3.2\n"
+    checksum = hashlib.sha256(source).hexdigest()
+    payload = {
+        "job_id": job_id,
+        "engine": "dataset-revision",
+        "source_file_name": "measured.csv",
+    }
+
+    def fake_open(request, timeout):
+        assert timeout == 30
+        if request.full_url.endswith("/claim"):
+            return FakeResponse(200, {
+                "job": payload,
+                "source": {
+                    "downloadUrl": f"/api/worker/dataset-revisions/{job_id}/source",
+                    "fileName": "measured.csv",
+                    "sizeBytes": len(source),
+                    "checksumSha256": checksum,
+                },
+            })
+        assert request.get_header("X-worker-id") == "worker-a"
+        return FakeResponse(200, source)
+
+    monkeypatch.setattr(remote_module, "urlopen", fake_open)
+    store = RemoteJobStore(
+        "https://example.com", "secret", tmp_path, "dataset-revision"
+    )
+    row = store.claim("worker-a")
+    assert row is not None
+    assert Path(row["source_path"]).read_bytes() == source
+    assert Path(row["source_path"]).name == "measured.csv"
+    assert job_id in Path(row["source_path"]).parts
 
 
 def test_retryable_completion_outage_does_not_mark_model_failed(tmp_path: Path) -> None:

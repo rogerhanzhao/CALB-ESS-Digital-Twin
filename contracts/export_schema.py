@@ -18,7 +18,14 @@ from calb_ess_digital_twin.study_comparison import (
     StudyComparisonRequest,
     StudyComparisonResult,
 )
-from contracts.models import ComparisonJobPayload, ComparisonJobResult, JobPayload, RunResult
+from contracts.models import (
+    ComparisonJobPayload,
+    ComparisonJobResult,
+    DatasetRevisionJobPayload,
+    DatasetRevisionJobResult,
+    JobPayload,
+    RunResult,
+)
 
 
 def _ts_type(schema: dict[str, Any]) -> str:
@@ -87,6 +94,8 @@ def export(output_dir: Path) -> None:
         "dataset-revision-request.schema.json": DatasetRevisionRequest,
         "dataset-revision-result.schema.json": DatasetRevisionResult,
         "dataset-revision-manifest.schema.json": DatasetRevisionManifest,
+        "dataset-revision-job.schema.json": DatasetRevisionJobPayload,
+        "dataset-revision-job-result.schema.json": DatasetRevisionJobResult,
     }
     for filename, model in schemas.items():
         content = json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"

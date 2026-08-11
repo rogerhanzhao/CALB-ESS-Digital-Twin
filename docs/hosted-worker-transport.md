@@ -1,6 +1,6 @@
 # V0.2 Hosted worker transport
 
-The hosted control plane exposes private transports for standard-study and study-comparison workers. Browser identity
+The hosted control plane exposes private transports for standard-study, study-comparison, and dataset-revision workers. Browser identity
 and compute-worker identity are separate: product APIs use authenticated Sites user headers, while
 `/api/worker/**` requires the server-managed `WORKER_API_TOKEN` bearer secret. The secret is never
 present in client code or `.openai/hosting.json`.
@@ -41,6 +41,24 @@ cross-checks request/result/manifest identities and manifest file records, indep
 every annual capacity delta, classification, validity transition and issue-set change from the two
 source study trajectories, and compares the aggregate result with the worker completion summary.
 Any mismatch leaves the comparison running and returns a conflict instead of publishing evidence.
+
+Dataset revision workers form a third, independent queue selected with
+`--remote-job-kind dataset-revision`. The control plane accepts only an owned CSV source object and
+an approved, product-matched validation policy. A claim returns a short-lived worker-authorized
+download URL; both the control plane and Python worker verify the original byte count and SHA-256
+before processing. The worker then creates the immutable revision bundle and uploads the four
+required JSON evidence files, plus `canonical.csv` and `cycle-metrics.json` only when the declared
+outcome makes those files available. Completion re-hashes every R2 object and cross-checks the
+request, result, validation report, manifest, source identity, and exact manifest file set before
+publishing the D1 summary. A `pass` result alone is calibration-eligible; `warning` remains visible
+for engineering review and `reject` publishes no canonical dataset.
+
+This queue is intentionally sized for occasional engineering batches rather than many concurrent
+end-user simulations. One CPU worker is sufficient for ordinary CSV validation and cycle-metric
+extraction; memory use is bounded primarily by the 25 MiB source limit and pandas parsing overhead.
+GPU capacity is not used by this stage. Additional workers improve turnaround for newly imported
+test campaigns but do not change evidence semantics because claims are lease-owned and results are
+content-addressed.
 
 ## Deliberately unresolved submission boundary
 

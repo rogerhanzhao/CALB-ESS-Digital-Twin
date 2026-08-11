@@ -3,6 +3,8 @@ import jobSchema from "../../contracts/generated/job.schema.json" with { type: "
 import resultSchema from "../../contracts/generated/result.schema.json" with { type: "json" };
 import comparisonJobSchema from "../../contracts/generated/comparison-job.schema.json" with { type: "json" };
 import comparisonResultSchema from "../../contracts/generated/comparison-job-result.schema.json" with { type: "json" };
+import datasetRevisionJobSchema from "../../contracts/generated/dataset-revision-job.schema.json" with { type: "json" };
+import datasetRevisionJobResultSchema from "../../contracts/generated/dataset-revision-job-result.schema.json" with { type: "json" };
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
@@ -12,6 +14,8 @@ const validateRunResultSchema = ajv.compile(resultSchema);
 const validateJobPayloadSchema = ajv.compile(jobSchema);
 const validateComparisonJobSchema = ajv.compile(comparisonJobSchema);
 const validateComparisonResultSchema = ajv.compile(comparisonResultSchema);
+const validateDatasetRevisionJobSchema = ajv.compile(datasetRevisionJobSchema);
+const validateDatasetRevisionJobResultSchema = ajv.compile(datasetRevisionJobResultSchema);
 
 export const STANDARD_STUDY_ARTIFACTS = [
   "manifest.json",
@@ -28,6 +32,11 @@ export const STUDY_COMPARISON_ARTIFACTS = [
   "comparison-result.json",
 ] as const;
 export type StudyComparisonArtifactKind = (typeof STUDY_COMPARISON_ARTIFACTS)[number];
+export const DATASET_REVISION_ARTIFACTS = [
+  "canonical.csv", "cycle-metrics.json", "dataset-revision-result.json",
+  "revision-manifest.json", "revision-request.json", "validation-report.json",
+] as const;
+export type DatasetRevisionArtifactKind = (typeof DATASET_REVISION_ARTIFACTS)[number];
 
 export type WorkerIdentity = {
   workerId: string;
@@ -69,6 +78,17 @@ export type ComparisonWorkerCompletion = {
     sizeBytes: number;
     checksumSha256: string;
   }>;
+};
+export type DatasetRevisionWorkerCompletion = {
+  workerId: string;
+  result: {
+    contract_version: "1.0"; job_id: string; engine: "dataset-revision";
+    model_version: "data-validation-V0.2"; code_revision: string; status: "completed";
+    revision_id: string; validation_outcome: "pass" | "warning" | "reject";
+    canonical_available: boolean; cycle_metrics_available: boolean;
+    artifact_checksums: Record<string, string>;
+  };
+  artifacts: Array<{ kind: DatasetRevisionArtifactKind; objectKey: string; contentType: string; sizeBytes: number; checksumSha256: string }>;
 };
 
 const WORKER_ID = /^[A-Za-z0-9._:-]{1,120}$/;
@@ -124,6 +144,11 @@ export function comparisonJobPayloadIsValid(value: unknown, comparisonId: string
     value.job_id === comparisonId &&
     value.engine === "study-comparison"
   );
+}
+
+export function datasetRevisionJobPayloadIsValid(value: unknown, revisionId: string): boolean {
+  return validateDatasetRevisionJobSchema(value) && isRecord(value) &&
+    value.job_id === revisionId && value.engine === "dataset-revision";
 }
 
 export function isWorkerId(value: unknown): value is string {
@@ -208,6 +233,33 @@ export function parseComparisonWorkerCompletion(
   return value as ComparisonWorkerCompletion;
 }
 
+export function parseDatasetRevisionWorkerCompletion(value: unknown, revisionId: string): DatasetRevisionWorkerCompletion | null {
+  if (!isRecord(value) || !isWorkerId(value.workerId) || !isRecord(value.result) ||
+      !validateDatasetRevisionJobResultSchema(value.result) || value.result.job_id !== revisionId ||
+      value.result.revision_id !== revisionId || value.result.status !== "completed") return null;
+  if (!Array.isArray(value.artifacts)) return null;
+  const checksums = value.result.artifact_checksums;
+  if (!isRecord(checksums)) return null;
+  const expected = new Set<string>([
+    "dataset-revision-result.json", "revision-manifest.json", "revision-request.json", "validation-report.json",
+  ]);
+  if (value.result.canonical_available) expected.add("canonical.csv");
+  if (value.result.cycle_metrics_available) expected.add("cycle-metrics.json");
+  if (value.artifacts.length !== expected.size) return null;
+  const artifacts: DatasetRevisionWorkerCompletion["artifacts"] = [];
+  for (const item of value.artifacts) {
+    if (!isRecord(item) || !isDatasetRevisionArtifactKind(item.kind) || !expected.has(item.kind) ||
+        item.objectKey !== datasetRevisionResultObjectKey(revisionId, item.kind) ||
+        item.contentType !== (item.kind === "canonical.csv" ? "text/csv; charset=utf-8" : "application/json") ||
+        typeof item.sizeBytes !== "number" || !Number.isInteger(item.sizeBytes) || item.sizeBytes < 0 ||
+        typeof item.checksumSha256 !== "string" || !SHA256.test(item.checksumSha256) ||
+        checksums[item.kind] !== item.checksumSha256) return null;
+    artifacts.push(item as DatasetRevisionWorkerCompletion["artifacts"][number]);
+  }
+  if (new Set(artifacts.map((item) => item.kind)).size !== expected.size) return null;
+  return value as DatasetRevisionWorkerCompletion;
+}
+
 export function isArtifactKind(value: unknown): value is StandardStudyArtifactKind {
   return (STANDARD_STUDY_ARTIFACTS as readonly unknown[]).includes(value);
 }
@@ -225,6 +277,14 @@ export function comparisonResultObjectKey(
   kind: StudyComparisonArtifactKind,
 ): string {
   return `comparisons/${comparisonId}/results/${kind}`;
+}
+
+export function isDatasetRevisionArtifactKind(value: unknown): value is DatasetRevisionArtifactKind {
+  return (DATASET_REVISION_ARTIFACTS as readonly unknown[]).includes(value);
+}
+
+export function datasetRevisionResultObjectKey(revisionId: string, kind: DatasetRevisionArtifactKind): string {
+  return `dataset-revisions/${revisionId}/results/${kind}`;
 }
 
 export async function sha256Hex(content: ArrayBuffer): Promise<string> {

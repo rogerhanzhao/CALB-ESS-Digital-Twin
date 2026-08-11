@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   comparisonJobPayloadIsValid,
   comparisonResultObjectKey,
+  datasetRevisionJobPayloadIsValid,
+  datasetRevisionResultObjectKey,
   parseComparisonWorkerCompletion,
+  parseDatasetRevisionWorkerCompletion,
   parseWorkerCompletion,
   parseWorkerIdentity,
   resultObjectKey,
@@ -160,6 +163,64 @@ test("comparison completion requires three exact immutable artifacts", () => {
   assert.ok(parseComparisonWorkerCompletion(value, RUN_ID));
   assert.equal(parseComparisonWorkerCompletion({ ...value, artifacts: artifacts.slice(1) }, RUN_ID), null);
   assert.equal(parseComparisonWorkerCompletion(value, crypto.randomUUID()), null);
+});
+
+test("dataset revision claim requires its independent contract and source identity", () => {
+  const payload = {
+    contract_version: "1.0",
+    job_id: RUN_ID,
+    user_id: "alex",
+    engine: "dataset-revision",
+    model_version: "data-validation-V0.2",
+    code_revision: "abcdef1",
+    source_file_name: "cycle.csv",
+    source_checksum_sha256: "1".repeat(64),
+    dataset_revision_request: {},
+    submitted_at: "2026-08-12T00:00:00Z",
+  };
+  assert.equal(datasetRevisionJobPayloadIsValid(payload, RUN_ID), true);
+  assert.equal(datasetRevisionJobPayloadIsValid({ ...payload, source_file_name: "" }, RUN_ID), false);
+  assert.equal(datasetRevisionJobPayloadIsValid(payload, crypto.randomUUID()), false);
+});
+
+test("dataset revision completion enforces outcome-dependent immutable artifacts", () => {
+  const checksums = {
+    "dataset-revision-result.json": "1".repeat(64),
+    "revision-manifest.json": "2".repeat(64),
+    "revision-request.json": "3".repeat(64),
+    "validation-report.json": "4".repeat(64),
+    "canonical.csv": "5".repeat(64),
+  };
+  const value = {
+    workerId: "dataset-worker:123",
+    result: {
+      contract_version: "1.0",
+      job_id: RUN_ID,
+      engine: "dataset-revision",
+      model_version: "data-validation-V0.2",
+      code_revision: "abcdef1",
+      status: "completed",
+      revision_id: RUN_ID,
+      validation_outcome: "warning",
+      canonical_available: true,
+      cycle_metrics_available: false,
+      artifact_checksums: checksums,
+      completed_at: "2026-08-12T00:00:00Z",
+    },
+    artifacts: Object.entries(checksums).map(([kind, checksumSha256]) => ({
+      kind,
+      objectKey: datasetRevisionResultObjectKey(RUN_ID, kind as keyof typeof checksums),
+      contentType: kind === "canonical.csv" ? "text/csv; charset=utf-8" : "application/json",
+      sizeBytes: 100,
+      checksumSha256,
+    })),
+  };
+  assert.ok(parseDatasetRevisionWorkerCompletion(value, RUN_ID));
+  assert.equal(parseDatasetRevisionWorkerCompletion({ ...value, artifacts: value.artifacts.slice(1) }, RUN_ID), null);
+  assert.equal(parseDatasetRevisionWorkerCompletion({
+    ...value,
+    result: { ...value.result, cycle_metrics_available: true },
+  }, RUN_ID), null);
 });
 
 test("SHA-256 helper hashes exact bytes", async () => {

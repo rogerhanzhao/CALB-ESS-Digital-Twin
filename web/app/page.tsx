@@ -94,6 +94,9 @@ type StandardScenarioOption = {
   name: string;
   status: string;
 };
+type DatasetOption = { id: string; name: string; productId: string; testType: string; status: string; checksumSha256: string | null; byteCount: number | null; sourceHref: string };
+type ValidationPolicyOption = { id: string; productId: string; version: string; status: "draft" | "approved" | "retired"; voltageMinV: number; voltageMaxV: number; absoluteCurrentMaxA: number; temperatureMinC: number; temperatureMaxC: number };
+type DatasetRevisionOption = { id: string; datasetId: string; revision: string; processingStatus: "queued" | "running" | "completed" | "failed" | "cancelled"; validationStatus: "pending" | "pass" | "warning" | "reject"; rowCount: number | null; totalAbsoluteThroughputAh: number | null; totalEquivalentFullCycles: number | null; error: string | null };
 
 type AuthState = "unknown" | "anonymous" | "authenticated";
 type SectionId = "overview" | "products" | "test-data" | "models" | "runs" | "results" | "warranty";
@@ -144,6 +147,18 @@ export default function Home() {
   const [testEndedAt, setTestEndedAt] = useState("");
   const [unitSchema, setUnitSchema] = useState("canonical-csv-V0.2");
   const [submittingDataset, setSubmittingDataset] = useState(false);
+  const [datasets, setDatasets] = useState<DatasetOption[]>([]);
+  const [validationPolicies, setValidationPolicies] = useState<ValidationPolicyOption[]>([]);
+  const [datasetRevisions, setDatasetRevisions] = useState<DatasetRevisionOption[]>([]);
+  const [policyVersion, setPolicyVersion] = useState("policy-V1");
+  const [policyBounds, setPolicyBounds] = useState({ voltageMinV: "", voltageMaxV: "", absoluteCurrentMaxA: "", temperatureMinC: "", temperatureMaxC: "" });
+  const [selectedDataset, setSelectedDataset] = useState("");
+  const [selectedValidationPolicy, setSelectedValidationPolicy] = useState("");
+  const [datasetRevisionVersion, setDatasetRevisionVersion] = useState("R1");
+  const [datasetRevisionCode, setDatasetRevisionCode] = useState("dataset-V1");
+  const [mappingJson, setMappingJson] = useState('[{"source_column":"timestamp","canonical_column":"timestamp","source_unit":"iso8601"}]');
+  const [cyclePolicyJson, setCyclePolicyJson] = useState('{"step_roles":{"1":"charge","2":"rest","3":"discharge","4":"rest"},"full_cycle_sequence":["charge","rest","discharge","rest"]}');
+  const [submittingRevision, setSubmittingRevision] = useState(false);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [calibrations, setCalibrations] = useState<CalibrationOption[]>([]);
   const [standardScenarios, setStandardScenarios] = useState<StandardScenarioOption[]>([]);
@@ -194,11 +209,14 @@ export default function Home() {
             : payload.simulations[0]?.id ?? current,
         );
         setNotice("任务已同步 · 关闭页面不会中断计算");
-        const [productResponse, calibrationResponse, standardResponse, comparisonResponse] = await Promise.all([
+        const [productResponse, calibrationResponse, standardResponse, comparisonResponse, datasetResponse, policyResponse, revisionResponse] = await Promise.all([
           fetch("/api/products", { cache: "no-store" }),
           fetch("/api/calibrations", { cache: "no-store" }),
           fetch("/api/standard-scenarios", { cache: "no-store" }),
           fetch("/api/study-comparisons", { cache: "no-store" }),
+          fetch("/api/test-datasets", { cache: "no-store" }),
+          fetch("/api/dataset-validation-policies", { cache: "no-store" }),
+          fetch("/api/dataset-revisions", { cache: "no-store" }),
         ]);
         if (productResponse.ok) {
           const data = await productResponse.json() as { products: ProductOption[] };
@@ -217,6 +235,18 @@ export default function Home() {
         if (comparisonResponse.ok) {
           const data = await comparisonResponse.json() as { comparisons: StudyComparison[] };
           setComparisons(data.comparisons);
+        }
+        if (datasetResponse.ok) {
+          const data = await datasetResponse.json() as { datasets: DatasetOption[] };
+          setDatasets(data.datasets); setSelectedDataset((value) => value || data.datasets[0]?.id || "");
+        }
+        if (policyResponse.ok) {
+          const data = await policyResponse.json() as { policies: ValidationPolicyOption[] };
+          setValidationPolicies(data.policies); setSelectedValidationPolicy((value) => value || data.policies.find((item) => item.status === "approved")?.id || "");
+        }
+        if (revisionResponse.ok) {
+          const data = await revisionResponse.json() as { revisions: DatasetRevisionOption[] };
+          setDatasetRevisions(data.revisions);
         }
       } catch {
         // Network failure during local preview: keep the rows already on screen.
@@ -346,13 +376,46 @@ export default function Home() {
       for (const [key, value] of Object.entries({ productId, sampleCode, name: datasetFile.name, testType: datasetType, batchCode, sourceLab, equipmentId, operator, testStartedAt: new Date(testStartedAt).toISOString(), testEndedAt: new Date(testEndedAt).toISOString(), unitSchema })) form.set(key, value);
       form.set("sourceFile", datasetFile);
       const response = await fetch("/api/test-datasets", { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: form });
-      const payload = await response.json() as { dataset?: { checksumSha256: string; byteCount: number; rowCount: number | null }; error?: string; details?: string[] };
+      const payload = await response.json() as { dataset?: DatasetOption & { rowCount: number | null }; error?: string; details?: string[] };
       if (!response.ok || !payload.dataset) { setNotice(payload.details?.join("；") ?? payload.error ?? "上传失败"); return; }
-      setNotice(`原始测试证据已不可变保存 · ${payload.dataset.byteCount} B · SHA-256 ${payload.dataset.checksumSha256.slice(0, 12)} · ${payload.dataset.rowCount ?? "待解析"} 行`);
+      setNotice(`原始测试证据已不可变保存 · ${payload.dataset.byteCount} B · SHA-256 ${payload.dataset.checksumSha256?.slice(0, 12) ?? "待核验"} · ${payload.dataset.rowCount ?? "待解析"} 行`);
+      setDatasets((items) => [payload.dataset!, ...items]); setSelectedDataset(payload.dataset.id);
       setDatasetFile(null);
     } finally {
       setSubmittingDataset(false);
     }
+  }
+
+  async function createValidationPolicy(event: FormEvent) {
+    event.preventDefault();
+    if (!productId) { setNotice("请先保存产品档案"); return; }
+    const numbers = Object.fromEntries(Object.entries(policyBounds).map(([key, value]) => [key, Number(value)]));
+    const response = await fetch("/api/dataset-validation-policies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productId, version: policyVersion, ...numbers, irregularIntervalFraction: 0.1, gapIntervalMultiplier: 3 }) });
+    const payload = await response.json() as { policy?: ValidationPolicyOption; error?: string; details?: string[] };
+    if (!response.ok || !payload.policy) { setNotice(payload.details?.join("；") ?? payload.error ?? "策略保存失败"); return; }
+    setValidationPolicies((items) => [payload.policy!, ...items]); setNotice("验证策略草稿已保存；确认边界来自正式产品/试验计划后再批准");
+  }
+
+  async function approveValidationPolicy(id: string) {
+    const response = await fetch(`/api/dataset-validation-policies/${encodeURIComponent(id)}/approve`, { method: "POST" });
+    const payload = await response.json() as { policy?: ValidationPolicyOption; error?: string };
+    if (!response.ok || !payload.policy) { setNotice(payload.error ?? "策略批准失败"); return; }
+    setValidationPolicies((items) => items.map((item) => item.id === id ? payload.policy! : item));
+    setSelectedValidationPolicy(id); setNotice("验证策略已冻结批准，可用于数据修订");
+  }
+
+  async function submitDatasetRevision(event: FormEvent) {
+    event.preventDefault(); setSubmittingRevision(true);
+    try {
+      const dataset = datasets.find((item) => item.id === selectedDataset);
+      const mappings = JSON.parse(mappingJson);
+      const cycleMetricPolicy = dataset?.testType === "cycle_aging" ? JSON.parse(cyclePolicyJson) : null;
+      const response = await fetch("/api/dataset-revisions", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ datasetId: selectedDataset, validationPolicyId: selectedValidationPolicy, revision: datasetRevisionVersion, mappingVersion: "mapping-V1", cleaningRuleVersion: "cleaning-V1", codeRevision: datasetRevisionCode, currentSign: "charge_positive", mappings, cycleMetricPolicy }) });
+      const payload = await response.json() as { revision?: DatasetRevisionOption; error?: string; details?: string[] };
+      if (!response.ok || !payload.revision) { setNotice(payload.details?.join("；") ?? payload.error ?? "数据修订提交失败"); return; }
+      setDatasetRevisions((items) => [payload.revision!, ...items]); setNotice("数据修订已进入独立 Python 计算队列 · 关闭页面不会中断");
+    } catch (error) { setNotice(error instanceof Error ? `映射/步骤 JSON 无效：${error.message}` : "数据修订提交失败"); }
+    finally { setSubmittingRevision(false); }
   }
 
   async function submitStandardStudy(event: FormEvent) {
@@ -513,6 +576,7 @@ export default function Home() {
           <section className="panel domain-card" id="test-data">
             <div className="panel-head"><div><p className="eyebrow">TEST DATA INTAKE</p><h2>测试数据导入</h2></div><span className="stage-badge waiting">待接入</span></div>
             <form className="dataset-form" onSubmit={registerDataset}><div className="form-row"><label>测试类型<select value={datasetType} onChange={(event) => setDatasetType(event.target.value)}><option value="cycle_aging">循环老化</option><option value="calendar_aging">日历老化</option><option value="hppc">HPPC</option><option value="temperature">温度特性</option></select></label><label>电芯批次<input value={batchCode} onChange={(event) => setBatchCode(event.target.value)} required /></label></div><div className="form-row"><label>样品编号<input value={sampleCode} onChange={(event) => setSampleCode(event.target.value)} required /></label><label>设备 / 通道编号<input value={equipmentId} onChange={(event) => setEquipmentId(event.target.value)} required /></label></div><div className="form-row"><label>测试机构 / 实验室<input value={sourceLab} onChange={(event) => setSourceLab(event.target.value)} required /></label><label>责任操作员<input value={operator} onChange={(event) => setOperator(event.target.value)} required /></label></div><div className="form-row"><label>测试开始时间<input type="datetime-local" value={testStartedAt} onChange={(event) => setTestStartedAt(event.target.value)} required /></label><label>测试结束时间<input type="datetime-local" value={testEndedAt} onChange={(event) => setTestEndedAt(event.target.value)} required /></label></div><label>单位 / 列映射声明<input value={unitSchema} onChange={(event) => setUnitSchema(event.target.value)} maxLength={2000} placeholder="例如 canonical-csv-V0.2 或受控映射版本" required /></label><div className="drop-zone"><strong>{datasetFile?.name ?? "选择测试数据包"}</strong><span>CSV / XLSX 原始字节将写入私有对象存储；服务器独立计算 SHA-256 和 CSV 行数，源文件不会被覆盖。</span><input type="file" accept=".csv,.xlsx" onChange={(event) => setDatasetFile(event.target.files?.[0] ?? null)} required /><button type="submit" disabled={submittingDataset}>{submittingDataset ? "正在上传…" : "上传不可变源数据"}</button></div></form>
+            <details className="advanced-panel"><summary>验证策略与数据修订</summary><form className="compact-form" onSubmit={createValidationPolicy}><label>策略版本<input value={policyVersion} onChange={(event) => setPolicyVersion(event.target.value)} required /></label><div className="form-row"><label>最低电压 V<input type="number" step="any" value={policyBounds.voltageMinV} onChange={(event) => setPolicyBounds((value) => ({ ...value, voltageMinV: event.target.value }))} required /></label><label>最高电压 V<input type="number" step="any" value={policyBounds.voltageMaxV} onChange={(event) => setPolicyBounds((value) => ({ ...value, voltageMaxV: event.target.value }))} required /></label></div><div className="form-row"><label>最大绝对电流 A<input type="number" step="any" value={policyBounds.absoluteCurrentMaxA} onChange={(event) => setPolicyBounds((value) => ({ ...value, absoluteCurrentMaxA: event.target.value }))} required /></label><label>最低温度 °C<input type="number" step="any" value={policyBounds.temperatureMinC} onChange={(event) => setPolicyBounds((value) => ({ ...value, temperatureMinC: event.target.value }))} required /></label><label>最高温度 °C<input type="number" step="any" value={policyBounds.temperatureMaxC} onChange={(event) => setPolicyBounds((value) => ({ ...value, temperatureMaxC: event.target.value }))} required /></label></div><button className="secondary-button">保存策略草稿</button></form><div className="review-history">{validationPolicies.map((policy) => <article key={policy.id}><b>{policy.version} · {policy.status}</b><span>{policy.voltageMinV}–{policy.voltageMaxV} V · |I|≤{policy.absoluteCurrentMaxA} A · {policy.temperatureMinC}–{policy.temperatureMaxC} °C</span>{policy.status === "draft" && <button type="button" className="text-button" onClick={() => approveValidationPolicy(policy.id)}>确认来自正式试验计划并批准</button>}</article>)}</div><form className="dataset-form" onSubmit={submitDatasetRevision}><div className="form-row"><label>原始数据<select value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)} required><option value="">选择已上传 CSV</option>{datasets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.testType}</option>)}</select></label><label>批准验证策略<select value={selectedValidationPolicy} onChange={(event) => setSelectedValidationPolicy(event.target.value)} required><option value="">选择批准策略</option>{validationPolicies.filter((item) => item.status === "approved").map((item) => <option key={item.id} value={item.id}>{item.version}</option>)}</select></label></div><div className="form-row"><label>数据修订<input value={datasetRevisionVersion} onChange={(event) => setDatasetRevisionVersion(event.target.value)} required /></label><label>代码修订<input value={datasetRevisionCode} onChange={(event) => setDatasetRevisionCode(event.target.value)} minLength={7} required /></label></div><label>列与单位映射 JSON<textarea value={mappingJson} onChange={(event) => setMappingJson(event.target.value)} required /></label>{datasets.find((item) => item.id === selectedDataset)?.testType === "cycle_aging" && <label>循环步骤策略 JSON<textarea value={cyclePolicyJson} onChange={(event) => setCyclePolicyJson(event.target.value)} required /></label>}<button className="secondary-button" disabled={submittingRevision}>{submittingRevision ? "正在提交…" : "创建数据修订任务"}</button></form><div className="review-history">{datasetRevisions.slice(0, 5).map((item) => <article key={item.id}><b>{item.revision} · {item.processingStatus} · {item.validationStatus}</b><span>{item.rowCount ?? "待计算"} 行 · 吞吐量 {item.totalAbsoluteThroughputAh ?? "—"} Ah · EFC {item.totalEquivalentFullCycles ?? "—"}</span>{item.processingStatus === "completed" && <a href={`/api/dataset-revisions/${item.id}/artifacts/validation-report.json`}>下载质量报告</a>}{item.error && <small>{item.error}</small>}</article>)}</div></details>
             <p className="boundary-note">导入数据必须保留来源、批次、测试设备、时间范围和单位；未经审核的数据不能用于发布模型。</p>
           </section>
 

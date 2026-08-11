@@ -161,3 +161,31 @@ class ComparisonJobResult(StrictModel):
     maximum_absolute_capacity_delta_fraction: float = Field(ge=0)
     artifact_checksums: dict[str, str]
     completed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DatasetRevisionJobPayload(StrictModel):
+    contract_version: Literal["1.0"] = "1.0"
+    job_id: UUID
+    user_id: str = Field(min_length=1, max_length=200)
+    engine: Literal["dataset-revision"] = "dataset-revision"
+    model_version: Literal["data-validation-V0.2"] = "data-validation-V0.2"
+    code_revision: str = Field(min_length=7, max_length=64)
+    source_file_name: str = Field(min_length=1, max_length=240)
+    source_checksum_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    dataset_revision_request: dict[str, Any]
+    submitted_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DatasetRevisionJobResult(StrictModel):
+    contract_version: Literal["1.0"] = "1.0"
+    job_id: UUID
+    engine: Literal["dataset-revision"] = "dataset-revision"
+    model_version: Literal["data-validation-V0.2"] = "data-validation-V0.2"
+    code_revision: str
+    status: Literal["completed", "failed", "cancelled"]
+    revision_id: str
+    validation_outcome: Literal["pass", "warning", "reject"]
+    canonical_available: bool
+    cycle_metrics_available: bool
+    artifact_checksums: dict[str, str]
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

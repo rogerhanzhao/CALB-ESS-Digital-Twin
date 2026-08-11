@@ -1,0 +1,86 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifact Checksums",
+      "type": "object"
+    },
+    "canonical_available": {
+      "title": "Canonical Available",
+      "type": "boolean"
+    },
+    "code_revision": {
+      "title": "Code Revision",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "cycle_metrics_available": {
+      "title": "Cycle Metrics Available",
+      "type": "boolean"
+    },
+    "engine": {
+      "const": "dataset-revision",
+      "default": "dataset-revision",
+      "title": "Engine",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "model_version": {
+      "const": "data-validation-V0.2",
+      "default": "data-validation-V0.2",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "validation_outcome": {
+      "enum": [
+        "pass",
+        "warning",
+        "reject"
+      ],
+      "title": "Validation Outcome",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "code_revision",
+    "status",
+    "revision_id",
+    "validation_outcome",
+    "canonical_available",
+    "cycle_metrics_available",
+    "artifact_checksums"
+  ],
+  "title": "DatasetRevisionJobResult",
+  "type": "object"
+}
