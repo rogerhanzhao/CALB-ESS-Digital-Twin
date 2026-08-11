@@ -1,3 +1,4 @@
+import type { JobPayload } from "@contracts/generated/contracts";
 import type { runs, scenarios } from "../db/schema";
 
 /**
@@ -18,6 +19,35 @@ export type Chemistry = (typeof APPROVED_CHEMISTRIES)[number];
 
 export const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
+/**
+ * The engine vocabulary, taken from the contract instead of restated here.
+ *
+ * `contracts/models.py` is the single source of truth; `contracts/generated/contracts.ts`
+ * is generated from it and CI fails if the two drift (`test_generated_contracts_are_current`).
+ * Importing the union means the control plane cannot quietly disagree with the compute
+ * plane about what an engine is, which is exactly what happened while this was `string`.
+ */
+export type RunEngine = JobPayload["engine"];
+
+/**
+ * Exhaustive membership map, not an array.
+ *
+ * A plain `["demo", ...]` literal would silently go stale when the contract gains an
+ * engine. Because this is typed `Record<RunEngine, true>`, adding a member to the
+ * contract makes this object fail to typecheck until it is updated — the drift becomes
+ * a build error rather than a runtime surprise.
+ */
+const RUN_ENGINES: Record<RunEngine, true> = {
+  demo: true,
+  stub: true,
+  "pybamm-spme": true,
+  "semi-empirical": true,
+};
+
+export function isRunEngine(value: string): value is RunEngine {
+  return Object.hasOwn(RUN_ENGINES, value);
+}
+
 export type ScenarioRow = typeof scenarios.$inferSelect;
 export type RunRow = typeof runs.$inferSelect;
 
@@ -33,7 +63,15 @@ export type RunView = {
   ambientTemperatureC: number;
   initialSoc: number;
   eolFraction: number;
-  engine: string;
+  /**
+   * `"unrecognized"` when the stored value is outside the contract vocabulary.
+   *
+   * The column is free-form `text`, so the database cannot guarantee the union. Rather
+   * than assert a type the storage does not enforce, an unknown value is surfaced under
+   * its own name: it is visibly not a demonstrator row and visibly not a real engine,
+   * which is the honest reading of a row nothing in this repository should have written.
+   */
+  engine: RunEngine | "unrecognized";
   modelVersion: string | null;
   codeRevision: string | null;
   status: string;
@@ -215,7 +253,7 @@ export function toRunView(run: RunRow, scenario: ScenarioRow): RunView {
     ambientTemperatureC: scenario.ambientTemperatureC,
     initialSoc: scenario.initialSoc,
     eolFraction: scenario.eolFraction,
-    engine: run.engine,
+    engine: isRunEngine(run.engine) ? run.engine : "unrecognized",
     modelVersion: run.modelVersion,
     codeRevision: run.codeRevision,
     status: run.status,

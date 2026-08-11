@@ -10,6 +10,8 @@ import { check, index, integer, real, sqliteTable, text, uniqueIndex } from "dri
 export const PRODUCT_STATUSES = ["draft", "under_review", "released", "retired"] as const;
 export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const;
 export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
+export const SCENARIO_STATUSES = ["draft", "released", "superseded"] as const;
+export const CALIBRATION_STATUSES = ["draft", "under_review", "approved", "rejected", "superseded"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -90,6 +92,120 @@ export const datasetRevisions = sqliteTable("dataset_revisions", {
   check("ck_dataset_revisions_validation_status", sql`${table.validationStatus} in ('pending', 'pass', 'warning', 'reject')`),
 ]);
 
+/**
+ * A fitted model plus the range it was fitted over.
+ *
+ * The envelope is columns, not prose, because `docs/architecture.md` section 3 requires
+ * every run to be marked inside or outside it. A boundary written as a sentence cannot be
+ * evaluated, which is why `runs.within_validity_envelope` has been permanently NULL: the
+ * column existed with nothing able to compute it. Dimensions follow
+ * `docs/test-data-import-and-quality-spec.md` section 7.
+ *
+ * Nullable bounds mean "this calibration does not constrain that dimension", which is not
+ * the same as a bound of zero. `web/lib/calibrations.ts` treats an absent bound as
+ * unconstrained and an absent scenario input as unevaluatable -- never as a pass.
+ */
+export const calibrations = sqliteTable("calibrations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull().references(() => cellProducts.id),
+  /** Fitted artifact identity, carried into every result produced with it. */
+  modelVersion: text("model_version").notNull(),
+  codeRevision: text("code_revision").notNull(),
+  /** Reported fit error against the input revisions. Null until the fit has been scored. */
+  fitError: real("fit_error"),
+  cellTemperatureMinC: real("cell_temperature_min_c"),
+  cellTemperatureMaxC: real("cell_temperature_max_c"),
+  chargeRateMinC: real("charge_rate_min_c"),
+  chargeRateMaxC: real("charge_rate_max_c"),
+  dischargeRateMinC: real("discharge_rate_min_c"),
+  dischargeRateMaxC: real("discharge_rate_max_c"),
+  depthOfDischargeMin: real("depth_of_discharge_min"),
+  depthOfDischargeMax: real("depth_of_discharge_max"),
+  socMin: real("soc_min"),
+  socMax: real("soc_max"),
+  maxCalendarDays: real("max_calendar_days"),
+  maxCycles: real("max_cycles"),
+  maxEquivalentFullCycles: real("max_equivalent_full_cycles"),
+  status: text("status", { enum: CALIBRATION_STATUSES }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_calibrations_product_created").on(table.productId, table.createdAt),
+  index("idx_calibrations_user_created").on(table.userId, table.createdAt),
+  check(
+    "ck_calibrations_status",
+    sql`${table.status} in ('draft', 'under_review', 'approved', 'rejected', 'superseded')`,
+  ),
+]);
+
+/**
+ * Which dataset revisions a calibration was fitted against.
+ *
+ * A join table rather than a list packed into one column: the evidence chain is the point,
+ * and a JSON blob of ids carries no foreign key, so a revision could be deleted or renamed
+ * out from under an approved calibration with nothing to stop it.
+ */
+export const calibrationInputs = sqliteTable("calibration_inputs", {
+  calibrationId: text("calibration_id").notNull().references(() => calibrations.id),
+  datasetRevisionId: text("dataset_revision_id").notNull().references(() => datasetRevisions.id),
+}, (table) => [
+  uniqueIndex("uq_calibration_inputs_pair").on(table.calibrationId, table.datasetRevisionId),
+  index("idx_calibration_inputs_revision").on(table.datasetRevisionId),
+]);
+
+/**
+ * A named, versioned duty cycle that results are meant to be compared across.
+ *
+ * `code` is opaque and `version` is monotonic within it. The parameters live in columns
+ * and are deliberately not encoded into the code: a label like `ESS-STD-25C-1CPD-90DOD`
+ * stops being true the moment a later version changes the SOC window, and a name that
+ * lies is worse than one that says nothing.
+ *
+ * Rows are append-only. There is no update path, and `uq_standard_scenarios_owner_code_version`
+ * makes re-registering an existing version fail rather than silently redefine what an
+ * already-approved result was run against.
+ *
+ * Ranges match `contracts/models.py::ScenarioInput`, which is the single source of truth
+ * for what the compute plane will accept. See `web/lib/scenarios.ts`.
+ */
+export const standardScenarios = sqliteTable("standard_scenarios", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  /** Stable identifier for the scenario family, e.g. `ESS-STD-BASELINE`. */
+  code: text("code").notNull(),
+  /** Monotonic within `code`. A changed definition is a new version, never an edit. */
+  version: integer("version").notNull(),
+  name: text("name").notNull(),
+  ambientTemperatureC: real("ambient_temperature_c").notNull(),
+  cyclesPerDay: real("cycles_per_day").notNull(),
+  depthOfDischarge: real("depth_of_discharge").notNull(),
+  /**
+   * Operating SOC window. Stored explicitly because DoD alone does not locate it.
+   *
+   * This is control-plane metadata: `ScenarioInput` has no SOC window, so execution cannot
+   * consume it today. It is used to judge a duty cycle against a calibration envelope. The
+   * contract gap is real and is raised on the review thread rather than papered over.
+   */
+  socWindowMin: real("soc_window_min").notNull(),
+  socWindowMax: real("soc_window_max").notNull(),
+  horizonYears: integer("horizon_years").notNull(),
+  /**
+   * Carried so the record is a complete execution template.
+   *
+   * `ScenarioInput` requires both, so a standard scenario lacking them could not construct
+   * an executable job without inventing values at submission time -- and an invented input
+   * is exactly what must never reach a result that claims to be reproducible.
+   */
+  initialSoc: real("initial_soc").notNull(),
+  endOfLifeFraction: real("end_of_life_fraction").notNull(),
+  status: text("status", { enum: SCENARIO_STATUSES }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("uq_standard_scenarios_owner_code_version").on(table.userId, table.code, table.version),
+  index("idx_standard_scenarios_user_created").on(table.userId, table.createdAt),
+  check("ck_standard_scenarios_status", sql`${table.status} in ('draft', 'released', 'superseded')`),
+]);
+
 /** What is being studied. Never mutated in place: an edit produces a new row. */
 export const scenarios = sqliteTable("scenarios", {
   id: text("id").primaryKey(),
@@ -98,6 +214,14 @@ export const scenarios = sqliteTable("scenarios", {
   chemistry: text("chemistry").notNull().default("LFP"),
   /** Which approved cell parameter set the study assumes. Null until `cell_database` publishes one. */
   cellParamSetVersion: text("cell_param_set_version"),
+  /**
+   * The standard scenario this study instantiates, when it instantiates one.
+   *
+   * Null for ad-hoc exploratory studies, which stay allowed. Only the row id is stored:
+   * the version belongs to the referenced row, and duplicating it here would let the two
+   * disagree — the same failure mode that put `batch_code` on one table only (#12 F2).
+   */
+  standardScenarioId: text("standard_scenario_id").references(() => standardScenarios.id),
   horizonYears: integer("horizon_years").notNull(),
   cyclesPerDay: real("cycles_per_day").notNull(),
   depthOfDischarge: real("depth_of_discharge").notNull().default(0.9),
@@ -119,7 +243,9 @@ export const runs = sqliteTable("runs", {
   idempotencyKey: text("idempotency_key"),
   /**
    * Permanent provenance marker, not a status. A row produced by the demonstrator
-   * progress engine stays `demo` for life and is never promoted to `pybamm`.
+   * progress engine stays `demo` for life and is never promoted to `pybamm-spme`.
+   * The vocabulary is `contracts/models.py`; `web/lib/runs.ts` derives its type from the
+   * generated contract so the two cannot drift apart again.
    */
   engine: text("engine").notNull().default("demo"),
   modelVersion: text("model_version"),

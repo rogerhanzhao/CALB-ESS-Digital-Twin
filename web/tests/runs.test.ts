@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   cancellability,
   deriveDemoView,
+  isRunEngine,
   parseCreateRunInput,
   parseIdempotencyKey,
   type RunView,
@@ -160,7 +161,7 @@ const createdAtMs = Date.parse(baseView.createdAt);
 // Regression guard for docs/design-review.md P0-2: the V0.1 read path advanced every
 // row by wall clock, which would have raced a real worker's writes once connected.
 test("deriveDemoView never touches rows owned by a compute worker", () => {
-  const real: RunView = { ...baseView, engine: "pybamm", demo: false, progress: 12, status: "running" };
+  const real: RunView = { ...baseView, engine: "pybamm-spme", demo: false, progress: 12, status: "running" };
   assert.deepEqual(deriveDemoView(real, createdAtMs + 10_000_000), real);
 });
 
@@ -222,6 +223,21 @@ test("cancellability refuses a run already in a terminal stored state", () => {
 });
 
 test("cancellability judges worker-owned runs on their stored status alone", () => {
-  const real: RunView = { ...baseView, engine: "pybamm", demo: false, status: "running" };
+  const real: RunView = { ...baseView, engine: "pybamm-spme", demo: false, status: "running" };
   assert.equal(cancellability(real, createdAtMs + 10_000_000).cancellable, true);
+});
+
+// The engine vocabulary is owned by contracts/models.py. These guard the property that
+// made the divergence possible in the first place: the control plane used to accept any
+// string here, so `pybamm` (never a contract value) sat in this file unchallenged.
+test("isRunEngine accepts exactly the contract vocabulary", () => {
+  for (const engine of ["demo", "stub", "pybamm-spme", "semi-empirical"]) {
+    assert.equal(isRunEngine(engine), true, `expected ${engine} to be a contract engine`);
+  }
+});
+
+test("isRunEngine rejects values the contract does not define", () => {
+  for (const engine of ["pybamm", "PyBaMM", "", "demo ", "spme", "__proto__", "toString"]) {
+    assert.equal(isRunEngine(engine), false, `expected ${JSON.stringify(engine)} to be rejected`);
+  }
 });

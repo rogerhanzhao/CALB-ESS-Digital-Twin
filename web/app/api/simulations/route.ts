@@ -99,6 +99,9 @@ export async function POST(request: Request) {
     name: input.name,
     chemistry: input.chemistry,
     cellParamSetVersion: null,
+    // This endpoint creates ad-hoc studies. Instantiating a versioned standard scenario is
+    // a separate flow, so the link is genuinely absent here rather than merely unset.
+    standardScenarioId: null,
     horizonYears: input.horizonYears,
     cyclesPerDay: input.cyclesPerDay,
     depthOfDischarge: input.depthOfDischarge,
