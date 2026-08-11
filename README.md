@@ -53,6 +53,11 @@ pytest
 
 Proprietary CALB cell and field data must not be committed to Git. Store local inputs under `data/raw/`; publish only reviewed, anonymized derived datasets when permitted.
 
+Measured CSV intake is available through `calb-validate-test-data`. Start with
+`examples/test-data-import/configuration.template.yaml`; every physical limit must come from an
+approved product/test-plan record. The command preserves the source file and creates a separate
+canonical CSV and validation report for the dataset revision.
+
 ## Status
 
 Initial architecture scaffold. The next milestone is a single-cell LFP baseline model with a documented parameter set and a reproducible reference duty cycle.

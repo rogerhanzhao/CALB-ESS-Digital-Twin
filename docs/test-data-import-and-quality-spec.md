@@ -210,3 +210,16 @@ The tables introduced in Draft PR #12 are provisional. Before merging:
 6. obtain Alex.Z acceptance of the first import template and quality thresholds.
 
 Numeric product safety limits and warning tolerances remain test-plan configuration. They must not be invented in this generic specification.
+
+### V0.2 executable intake slice
+
+The Python package now provides `calb-validate-test-data` as the first executable intake gate. It
+verifies the immutable source checksum, applies only declared and supported unit/sign conversions,
+checks test-type column requirements, enforces caller-supplied product/test-plan bounds, and emits a
+versioned JSON validation report plus canonical CSV when the outcome is not `reject`.
+
+This slice does not yet approve a dataset revision. Equipment/product registry lookup, warning
+disposition, excluded-row cleaning revisions, test-specific derived metrics, and control-plane
+artifact registration remain separate follow-up capabilities. The template under
+`examples/test-data-import/` is pending Alex.Z acceptance with the first real test-plan mapping and
+must not be treated as an approved CALB limit set.
