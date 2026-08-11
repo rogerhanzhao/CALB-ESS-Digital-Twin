@@ -2,6 +2,15 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import {
+  type DatasetColumnMapping,
+  duplicateSourceColumns,
+  mappingTemplate,
+  missingCanonicalColumns,
+  parseMappingJson,
+  unitOptionsFor,
+} from "../lib/dataset-mapping";
+
 type Simulation = {
   id: string;
   scenarioId: string;
@@ -218,69 +227,11 @@ const statusLabel: Record<Simulation["status"], string> = {
 
 const EM_DASH = "—";
 
-const BASE_CANONICAL_MAPPINGS = [
-  ["timestamp", "iso8601"],
-  ["elapsed_time_s", "s"],
-  ["voltage_v", "V"],
-  ["current_a", "A"],
-  ["cell_temperature_c", "degC"],
-  ["ambient_temperature_c", "degC"],
-] as const;
-
-function canonicalMappingTemplate(testType: string): string {
-  const typeColumns: Record<
-    string,
-    ReadonlyArray<readonly [string, string]>
-  > = {
-    cycle_aging: [
-      ["capacity_ah", "Ah"],
-      ["cycle_index", "integer"],
-      ["step_index", "integer"],
-    ],
-    calendar_aging: [["capacity_ah", "Ah"]],
-    hppc: [
-      ["soc_fraction", "fraction"],
-      ["step_index", "integer"],
-      ["rest_duration_s", "s"],
-    ],
-    temperature: [],
-  };
-  return JSON.stringify(
-    [...BASE_CANONICAL_MAPPINGS, ...(typeColumns[testType] ?? [])].map(
-      ([column, unit]) => ({
-        source_column: column,
-        canonical_column: column,
-        source_unit: unit,
-      }),
-    ),
-    null,
-    2,
-  );
-}
-
-function sourceAwareMappingTemplate(
+function mappingTemplateJson(
   testType: string,
   sourceColumns: string[] | null,
 ): string {
-  if (sourceColumns === null) return canonicalMappingTemplate(testType);
-  const canonical = JSON.parse(canonicalMappingTemplate(testType)) as Array<{
-    source_column: string;
-    canonical_column: string;
-    source_unit: string;
-  }>;
-  const byNormalizedName = new Map(
-    sourceColumns.map((column) => [column.trim().toLowerCase(), column]),
-  );
-  return JSON.stringify(
-    canonical.flatMap((mapping) => {
-      const source = byNormalizedName.get(
-        mapping.canonical_column.toLowerCase(),
-      );
-      return source ? [{ ...mapping, source_column: source }] : [];
-    }),
-    null,
-    2,
-  );
+  return JSON.stringify(mappingTemplate(testType, sourceColumns), null, 2);
 }
 
 export default function Home() {
@@ -333,7 +284,7 @@ export default function Home() {
     "charge_positive" | "discharge_positive"
   >("charge_positive");
   const [mappingJson, setMappingJson] = useState(
-    canonicalMappingTemplate("cycle_aging"),
+    mappingTemplateJson("cycle_aging", null),
   );
   const [cyclePolicyJson, setCyclePolicyJson] = useState(
     '{"step_roles":{"1":"charge","2":"rest","3":"discharge","4":"rest"},"full_cycle_sequence":["charge","rest","discharge","rest"]}',
@@ -367,6 +318,30 @@ export default function Home() {
   const [comparisonCodeRevision, setComparisonCodeRevision] =
     useState("compare-V1");
   const [submittingComparison, setSubmittingComparison] = useState(false);
+  const mappingRows = useMemo(
+    () => parseMappingJson(mappingJson),
+    [mappingJson],
+  );
+  const missingMappings =
+    mappingRows === null ? [] : missingCanonicalColumns(mappingRows);
+  const duplicateMappings =
+    mappingRows === null ? [] : duplicateSourceColumns(mappingRows);
+
+  function updateMappingRow(
+    index: number,
+    patch: Partial<DatasetColumnMapping>,
+  ) {
+    if (mappingRows === null) return;
+    setMappingJson(
+      JSON.stringify(
+        mappingRows.map((row, rowIndex) =>
+          rowIndex === index ? { ...row, ...patch } : row,
+        ),
+        null,
+        2,
+      ),
+    );
+  }
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
     document
@@ -808,7 +783,21 @@ export default function Home() {
     setSubmittingRevision(true);
     try {
       const dataset = datasets.find((item) => item.id === selectedDataset);
-      const mappings = JSON.parse(mappingJson);
+      const mappings = parseMappingJson(mappingJson);
+      if (mappings === null) {
+        setNotice("列映射 JSON 结构无效，请恢复可视化映射后再提交");
+        return;
+      }
+      const missing = missingCanonicalColumns(mappings);
+      if (missing.length) {
+        setNotice(`仍有必需列未映射：${missing.join("、")}`);
+        return;
+      }
+      const duplicates = duplicateSourceColumns(mappings);
+      if (duplicates.length) {
+        setNotice(`同一源列不能重复映射：${duplicates.join("、")}`);
+        return;
+      }
       const cycleMetricPolicy =
         dataset?.testType === "cycle_aging"
           ? JSON.parse(cyclePolicyJson)
@@ -860,7 +849,7 @@ export default function Home() {
     const dataset = datasets.find((item) => item.id === id);
     if (dataset) {
       setMappingJson(
-        sourceAwareMappingTemplate(dataset.testType, dataset.sourceColumns),
+        mappingTemplateJson(dataset.testType, dataset.sourceColumns),
       );
     }
   }
@@ -1791,8 +1780,74 @@ export default function Home() {
                     </select>
                   </label>
                 </div>
-                <label>
-                  列与单位映射 JSON
+                <div className="mapping-editor">
+                  <div className="mapping-editor-head">
+                    <b>逐列映射</b>
+                    <span>
+                      {mappingRows === null
+                        ? "高级 JSON 无法解析"
+                        : duplicateMappings.length
+                          ? `重复占用源列：${duplicateMappings.join("、")}`
+                          : missingMappings.length
+                            ? `还需映射 ${missingMappings.length} 个必需字段`
+                            : "必需字段已全部映射"}
+                    </span>
+                  </div>
+                  {mappingRows?.map((mapping, index) => (
+                    <div className="mapping-row" key={mapping.canonical_column}>
+                      <label>
+                        规范字段
+                        <input value={mapping.canonical_column} readOnly />
+                      </label>
+                      <label>
+                        源数据列
+                        <select
+                          value={mapping.source_column}
+                          onChange={(event) =>
+                            updateMappingRow(index, {
+                              source_column: event.target.value,
+                            })
+                          }
+                          required
+                        >
+                          <option value="">选择源列</option>
+                          {(
+                            datasets.find((item) => item.id === selectedDataset)
+                              ?.sourceColumns ?? []
+                          ).map((column) => (
+                            <option
+                              value={column}
+                              key={column}
+                              disabled={mappingRows.some(
+                                (row, rowIndex) =>
+                                  rowIndex !== index &&
+                                  row.source_column === column,
+                              )}
+                            >
+                              {column}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        源单位
+                        <select
+                          value={mapping.source_unit}
+                          onChange={(event) =>
+                            updateMappingRow(index, {
+                              source_unit: event.target.value,
+                            })
+                          }
+                        >
+                          {unitOptionsFor(mapping).map((unit) => (
+                            <option value={unit} key={unit}>
+                              {unit}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  ))}
                   <button
                     type="button"
                     className="text-button"
@@ -1802,7 +1857,7 @@ export default function Home() {
                       );
                       if (dataset)
                         setMappingJson(
-                          sourceAwareMappingTemplate(
+                          mappingTemplateJson(
                             dataset.testType,
                             dataset.sourceColumns,
                           ),
@@ -1812,12 +1867,18 @@ export default function Home() {
                   >
                     按已识别源列重新生成
                   </button>
-                  <textarea
-                    value={mappingJson}
-                    onChange={(event) => setMappingJson(event.target.value)}
-                    required
-                  />
-                </label>
+                </div>
+                <details>
+                  <summary>高级：查看或编辑映射 JSON</summary>
+                  <label>
+                    列与单位映射 JSON
+                    <textarea
+                      value={mappingJson}
+                      onChange={(event) => setMappingJson(event.target.value)}
+                      required
+                    />
+                  </label>
+                </details>
                 {datasets.find((item) => item.id === selectedDataset)
                   ?.testType === "cycle_aging" && (
                   <label>
