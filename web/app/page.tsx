@@ -13,8 +13,47 @@ type Simulation = {
   cyclesPerDay: number;
   endSoh: number | null;
   modelVersion: string | null;
+  codeRevision: string | null;
+  engine: "demo" | "stub" | "pybamm-spme" | "semi-empirical" | "standard-study" | "unrecognized";
+  withinValidityEnvelope: boolean | null;
   createdAt: string;
   demo: boolean;
+};
+
+type RunArtifact = {
+  kind: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  checksum: string | null;
+  createdAt: string;
+  href: string;
+};
+type RunDetail = {
+  runId: string;
+  provenance: {
+    jobContractVersion: string | null;
+    payloadChecksumSha256: string | null;
+    workerId: string | null;
+    attempt: number;
+    withinValidityEnvelope: boolean | null;
+    error: string | null;
+  };
+  artifacts: RunArtifact[];
+};
+type SohResult = {
+  runId: string;
+  result_version: string;
+  engineering_review_eligible: boolean;
+  warranty_eligible: false;
+  uncertainty_status: string;
+  warnings: string[];
+  points: Array<{
+    year: number;
+    predicted_capacity_fraction: number;
+    equivalent_full_cycles: number;
+    absolute_throughput_ah: number;
+    within_validity_envelope: boolean;
+  }>;
 };
 
 type ProductOption = { id: string; model: string; revision: string; status: string };
@@ -42,9 +81,9 @@ type SectionId = "overview" | "products" | "test-data" | "models" | "runs" | "re
  * interface never presents them as real results.
  */
 const previewRuns: Simulation[] = [
-  { id: "preview-1", scenarioId: "preview-1", name: "314 Ah · 20 年基准工况", status: "running", progress: 68, chemistry: "LFP", horizonYears: 20, cyclesPerDay: 1, endSoh: null, modelVersion: null, createdAt: "2026-08-09T08:42:00Z", demo: true },
-  { id: "preview-2", scenarioId: "preview-2", name: "AIDC 两充两放压力测试", status: "completed", progress: 100, chemistry: "LFP", horizonYears: 15, cyclesPerDay: 2, endSoh: 76.8, modelVersion: null, createdAt: "2026-08-08T03:12:00Z", demo: true },
-  { id: "preview-3", scenarioId: "preview-3", name: "JP 项目质保边界", status: "completed", progress: 100, chemistry: "LFP", horizonYears: 20, cyclesPerDay: 1, endSoh: 81.4, modelVersion: null, createdAt: "2026-08-07T11:08:00Z", demo: true },
+  { id: "preview-1", scenarioId: "preview-1", name: "314 Ah · 20 年基准工况", status: "running", progress: 68, chemistry: "LFP", horizonYears: 20, cyclesPerDay: 1, endSoh: null, modelVersion: null, codeRevision: null, engine: "demo", withinValidityEnvelope: null, createdAt: "2026-08-09T08:42:00Z", demo: true },
+  { id: "preview-2", scenarioId: "preview-2", name: "AIDC 两充两放压力测试", status: "completed", progress: 100, chemistry: "LFP", horizonYears: 15, cyclesPerDay: 2, endSoh: 76.8, modelVersion: null, codeRevision: null, engine: "demo", withinValidityEnvelope: null, createdAt: "2026-08-08T03:12:00Z", demo: true },
+  { id: "preview-3", scenarioId: "preview-3", name: "JP 项目质保边界", status: "completed", progress: 100, chemistry: "LFP", horizonYears: 20, cyclesPerDay: 1, endSoh: 81.4, modelVersion: null, codeRevision: null, engine: "demo", withinValidityEnvelope: null, createdAt: "2026-08-07T11:08:00Z", demo: true },
 ];
 
 const statusLabel: Record<Simulation["status"], string> = {
@@ -85,6 +124,8 @@ export default function Home() {
   const [selectedStandardScenario, setSelectedStandardScenario] = useState("");
   const [studyStartDate, setStudyStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [submittingStandardStudy, setSubmittingStandardStudy] = useState(false);
+  const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
+  const [sohResult, setSohResult] = useState<SohResult | null>(null);
 
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
@@ -141,10 +182,31 @@ export default function Home() {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    if (auth !== "authenticated" || !selected) return () => { active = false; };
+    const loadDetail = async () => {
+      const response = await fetch(`/api/simulations/${encodeURIComponent(selected)}`, { cache: "no-store" });
+      if (!response.ok || !active) return;
+      const detail = await response.json() as RunDetail & { simulation: Simulation };
+      setRunDetail({ ...detail, runId: selected });
+      const sohArtifact = detail.artifacts.find((artifact) => artifact.kind === "soh-result.json");
+      if (!sohArtifact) return;
+      const artifactResponse = await fetch(sohArtifact.href, { cache: "no-store" });
+      if (!artifactResponse.ok || !active) return;
+      const result = await artifactResponse.json() as Omit<SohResult, "runId">;
+      setSohResult({ ...result, runId: selected });
+    };
+    loadDetail().catch(() => undefined);
+    return () => { active = false; };
+  }, [auth, selected]);
+
   const current = useMemo(
     () => runs.find((run) => run.id === selected) ?? runs[0],
     [runs, selected],
   );
+  const currentDetail = runDetail?.runId === current?.id ? runDetail : null;
+  const currentSohResult = sohResult?.runId === current?.id ? sohResult : null;
   const activeCount = runs.filter((run) => run.status === "running" || run.status === "queued").length;
   const completedCount = runs.filter((run) => run.status === "completed").length;
   /** Every run is demonstrator output until a compute worker is connected. */
@@ -293,17 +355,19 @@ export default function Home() {
 
           <section className="panel result-card">
             <div className="panel-head"><div><p className="eyebrow">LIVE FORECAST</p><h2>SOH 预测曲线</h2></div><span className={`status ${current?.status ?? "queued"}`}>{current ? statusLabel[current.status] : "暂无"}</span></div>
-            <p className="chart-caveat">示意图形 · 尚未由计算结果绘制</p>
-            <div className="chart-wrap">
+            <p className="chart-caveat">{currentSohResult ? `正式结果 · ${currentSohResult.result_version}` : "示意图形 · 尚未载入正式计算结果"}</p>
+            {currentSohResult ? <div className="result-series" aria-label="年度 SOH 结果">{currentSohResult.points.map((point) => <div key={point.year} className={point.within_validity_envelope ? "" : "outside"} title={`第 ${point.year} 年 · SOH ${(point.predicted_capacity_fraction * 100).toFixed(2)}%`}><i style={{ height: `${Math.max(2, point.predicted_capacity_fraction * 100)}%` }} /><span>{point.year}</span></div>)}</div> : <div className="chart-wrap">
               <div className="chart-labels"><span>100%</span><span>90%</span><span>80%</span><span>70%</span></div>
               <div className="chart"><div className="eol-line"><span>质保阈值 80%</span></div><div className="curve" /><div className="curve-glow" /><div className="chart-years"><span>0</span><span>5</span><span>10</span><span>15</span><span>20 年</span></div></div>
-            </div>
+            </div>}
             <div className="forecast-stats">
               <div><span>预测期末 SOH{current?.demo ? " · 演示值" : ""}</span><strong>{current?.endSoh != null ? `${current.endSoh}%` : EM_DASH}</strong></div>
               <div><span>累计吞吐量</span><strong>{EM_DASH}</strong></div>
               <div><span>质保余量</span><strong>{EM_DASH}</strong></div>
             </div>
             <div className="progress-block"><div><span>任务进度 · {current?.id ?? EM_DASH}</span><b>{current?.progress ?? 0}%</b></div><progress value={current?.progress ?? 0} max="100" /></div>
+            {current && !current.demo && <div className="evidence-summary"><div><span>执行引擎</span><b>{current.engine}</b></div><div><span>代码修订</span><b>{current.codeRevision?.slice(0, 12) ?? EM_DASH}</b></div><div><span>有效性包络</span><b>{current.withinValidityEnvelope === null ? "待结果" : current.withinValidityEnvelope ? "范围内" : "超出范围"}</b></div><div><span>工程审核</span><b>{currentSohResult?.engineering_review_eligible ? "可进入审核" : "尚不可审核"}</b></div></div>}
+            {!!currentDetail?.artifacts.length && <div className="artifact-links"><span>结果证据</span>{currentDetail.artifacts.map((artifact) => <a key={artifact.kind} href={`${artifact.href}?download=1`}>{artifact.kind}<small>{artifact.sizeBytes == null ? EM_DASH : `${artifact.sizeBytes} B`} · {artifact.checksum?.slice(0, 10) ?? EM_DASH}</small></a>)}</div>}
           </section>
         </div>
 

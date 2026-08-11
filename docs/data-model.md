@@ -120,6 +120,11 @@ that an artifact cannot be silently substituted.
 The `audit_bundle` kind is the immutable record required for commercial warranty runs: inputs,
 model code revision, parameter-set revision, environment, logs, and output checksums.
 
+The hosted standard-study worker currently registers four exact JSON artifacts:
+`study-request.json`, `scenario-exposure.json`, `soh-result.json`, and `manifest.json`. Client
+applications receive an owner-authorized application URL, not the R2 URI. The read path verifies
+the stored byte count and SHA-256 again before returning evidence.
+
 ## Write ownership
 
 Exactly one writer per field, to prevent the read-path/worker race found in the review:

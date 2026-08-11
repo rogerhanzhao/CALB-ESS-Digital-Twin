@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { runs, scenarios } from "../../../../db/schema";
+import { runArtifacts, runs, scenarios } from "../../../../db/schema";
 import { cancellability, deriveDemoView, toRunView } from "../../../../lib/runs";
 
 type Context = { params: Promise<{ id: string }> };
@@ -33,7 +33,32 @@ export async function GET(request: Request, { params }: Context) {
   const row = await loadOwnedRun(id, owner);
   if (!row) return Response.json({ error: "not found" }, { status: 404 });
 
-  return Response.json({ simulation: deriveDemoView(toRunView(row.run, row.scenario)) });
+  const artifacts = await getDb()
+    .select({
+      kind: runArtifacts.kind,
+      contentType: runArtifacts.contentType,
+      sizeBytes: runArtifacts.sizeBytes,
+      checksum: runArtifacts.checksum,
+      createdAt: runArtifacts.createdAt,
+    })
+    .from(runArtifacts)
+    .where(eq(runArtifacts.runId, id));
+  return Response.json({
+    simulation: deriveDemoView(toRunView(row.run, row.scenario)),
+    provenance: {
+      jobContractVersion: row.run.jobContractVersion,
+      payloadChecksumSha256: row.run.payloadChecksumSha256,
+      workerId: row.run.workerId,
+      attempt: row.run.attempt,
+      withinValidityEnvelope:
+        row.run.withinValidityEnvelope === null ? null : row.run.withinValidityEnvelope === 1,
+      error: row.run.error,
+    },
+    artifacts: artifacts.map((artifact) => ({
+      ...artifact,
+      href: `/api/simulations/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact.kind)}`,
+    })),
+  });
 }
 
 /**

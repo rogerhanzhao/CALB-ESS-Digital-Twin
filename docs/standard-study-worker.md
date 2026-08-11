@@ -63,3 +63,20 @@ artifact registrations into `runs` and `run_artifacts`.
 
 The older `POST /api/simulations` route remains a visibly separate demonstrator for ad-hoc UI
 exploration. It cannot label or promote its output as a standard-study result.
+
+## Result evidence access
+
+`GET /api/simulations/{run-id}` returns the authenticated owner's run, execution provenance,
+and artifact metadata. The metadata includes the contract version, payload checksum, worker,
+attempt count, validity-envelope verdict, file checksum, and byte count.
+
+Artifact bytes are served only through
+`GET /api/simulations/{run-id}/artifacts/{kind}`. The route joins the artifact back to its owned
+run, accepts only the private `STUDY_ARTIFACTS` URI namespace, reads the R2 object, and recomputes
+its SHA-256 and byte count before returning it. `?download=1` adds a safe attachment filename;
+the R2 object key is never presented as a public URL.
+
+The Web result card reads `soh-result.json` from this authorized route and renders the annual
+capacity trajectory, envelope status, engine and code revision, engineering-review eligibility,
+and links to all four immutable evidence files. `warranty_eligible = false` remains explicit:
+an engineering-reviewable trajectory is not itself a commercial warranty approval.
