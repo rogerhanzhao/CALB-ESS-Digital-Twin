@@ -18,6 +18,8 @@ type ContractRanges = {
     | "horizon_years"
     | "initial_soc"
     | "end_of_life_fraction"
+    | "soc_window_min"
+    | "soc_window_max"
   >]: { min: number; max: number };
 };
 
@@ -34,6 +36,8 @@ export const CONTRACT_RANGES: ContractRanges = {
   horizon_years: { min: 1, max: 25 },
   initial_soc: { min: 0, max: 1 },
   end_of_life_fraction: { min: 0.5, max: 0.95 },
+  soc_window_min: { min: 0, max: 1 },
+  soc_window_max: { min: 0, max: 1 },
 };
 
 /** Opaque family identifier. Deliberately permissive about meaning, strict about shape. */
@@ -105,8 +109,8 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
   const ambientTemperatureC = numberIn(body, "ambientTemperatureC", CONTRACT_RANGES.ambient_temperature_c, errors);
   const cyclesPerDay = numberIn(body, "cyclesPerDay", CONTRACT_RANGES.cycles_per_day, errors);
   const depthOfDischarge = numberIn(body, "depthOfDischarge", CONTRACT_RANGES.depth_of_discharge, errors);
-  const socWindowMin = numberIn(body, "socWindowMin", { min: 0, max: 1 }, errors);
-  const socWindowMax = numberIn(body, "socWindowMax", { min: 0, max: 1 }, errors);
+  const socWindowMin = numberIn(body, "socWindowMin", CONTRACT_RANGES.soc_window_min, errors);
+  const socWindowMax = numberIn(body, "socWindowMax", CONTRACT_RANGES.soc_window_max, errors);
   const initialSoc = numberIn(body, "initialSoc", CONTRACT_RANGES.initial_soc, errors);
   const endOfLifeFraction = numberIn(body, "endOfLifeFraction", CONTRACT_RANGES.end_of_life_fraction, errors);
 
@@ -167,3 +171,33 @@ export function parseStandardScenarioInput(payload: unknown): Validation<Standar
     },
   };
 }
+
+/**
+ * Project a stored standard scenario onto the execution contract.
+ *
+ * This is the point of versioning scenarios at all: an approved result has to name the duty
+ * cycle it was produced under, and that name is worthless if running it again requires
+ * someone to supply values the record never held. Every field the contract requires comes
+ * from the row -- nothing is defaulted at submission time, because a value invented at the
+ * boundary would not be part of the version anyone approved.
+ *
+ * The SOC window arrives here from `ScenarioInput` (contract V2). Before that it was
+ * control-plane metadata the compute plane could not accept, which is what made the
+ * projection lossy in the first place.
+ */
+export function toScenarioInput(row: StoredStandardScenario): ScenarioInput {
+  return {
+    name: `${row.code} V${row.version}`,
+    horizon_years: row.horizonYears,
+    cycles_per_day: row.cyclesPerDay,
+    depth_of_discharge: row.depthOfDischarge,
+    soc_window_min: row.socWindowMin,
+    soc_window_max: row.socWindowMax,
+    ambient_temperature_c: row.ambientTemperatureC,
+    initial_soc: row.initialSoc,
+    end_of_life_fraction: row.endOfLifeFraction,
+  };
+}
+
+/** The columns the projection reads. Structural, so it accepts a row or a parsed input. */
+export type StoredStandardScenario = StandardScenarioInput & { version: number };

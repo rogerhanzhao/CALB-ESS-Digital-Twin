@@ -53,3 +53,55 @@ test("every bounded contract field is either enforced here or knowingly skipped"
   );
   assert.deepEqual(unaccounted, [], `contract bounds with no control-plane counterpart: ${unaccounted.join(", ")}`);
 });
+
+// The projection is the reason standard scenarios are versioned at all: an approved result
+// names a duty cycle, and that name is worthless if re-running it needs values the record
+// never held. Reading `required` from the schema rather than listing fields here means a
+// future required field breaks this test instead of silently becoming a submission-time guess.
+test("the projection supplies every field the contract requires", async () => {
+  const { toScenarioInput } = await import("../lib/scenarios.ts");
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
+    $defs: { ScenarioInput: { required: string[] } };
+  };
+
+  const projected = toScenarioInput({
+    code: "ESS-STD-BASELINE",
+    version: 3,
+    name: "Baseline duty cycle",
+    ambientTemperatureC: 25,
+    cyclesPerDay: 1,
+    depthOfDischarge: 0.9,
+    socWindowMin: 0.05,
+    socWindowMax: 0.95,
+    horizonYears: 20,
+    initialSoc: 0.5,
+    endOfLifeFraction: 0.8,
+  }) as unknown as Record<string, unknown>;
+
+  for (const field of schema.$defs.ScenarioInput.required) {
+    assert.ok(
+      projected[field] !== undefined,
+      `projection omits required contract field ${field}`,
+    );
+  }
+});
+
+// The version has to survive the projection. A result that records only the family name
+// cannot say which definition it ran under, which is the whole point of versioning.
+test("the projected name carries both the code and the version", async () => {
+  const { toScenarioInput } = await import("../lib/scenarios.ts");
+  const projected = toScenarioInput({
+    code: "ESS-STD-BASELINE",
+    version: 3,
+    name: "Baseline duty cycle",
+    ambientTemperatureC: 25,
+    cyclesPerDay: 1,
+    depthOfDischarge: 0.9,
+    socWindowMin: 0.05,
+    socWindowMax: 0.95,
+    horizonYears: 20,
+    initialSoc: 0.5,
+    endOfLifeFraction: 0.8,
+  });
+  assert.equal(projected.name, "ESS-STD-BASELINE V3");
+});
