@@ -11,7 +11,7 @@ from calb_ess_digital_twin.cell_database.dataset_revision import (
     DatasetRevisionRequest,
     DatasetRevisionResult,
 )
-from calb_ess_digital_twin.soh_engine import CalibrationResult
+from calb_ess_digital_twin.soh_engine import CalibrationBundleManifest, CalibrationResult
 from calb_ess_digital_twin.standard_study import StandardStudyRequest
 from calb_ess_digital_twin.study_comparison import (
     StudyComparisonManifest,
@@ -19,6 +19,8 @@ from calb_ess_digital_twin.study_comparison import (
     StudyComparisonResult,
 )
 from contracts.models import (
+    CalibrationFitJobPayload,
+    CalibrationFitJobResult,
     ComparisonJobPayload,
     ComparisonJobResult,
     DatasetRevisionJobPayload,
@@ -86,6 +88,9 @@ def export(output_dir: Path) -> None:
         "result.schema.json": RunResult,
         "standard-study-request.schema.json": StandardStudyRequest,
         "calibration-result.schema.json": CalibrationResult,
+        "calibration-manifest.schema.json": CalibrationBundleManifest,
+        "calibration-fit-job.schema.json": CalibrationFitJobPayload,
+        "calibration-fit-job-result.schema.json": CalibrationFitJobResult,
         "comparison-job.schema.json": ComparisonJobPayload,
         "comparison-job-result.schema.json": ComparisonJobResult,
         "study-comparison-request.schema.json": StudyComparisonRequest,

@@ -21,6 +21,11 @@ from calb_ess_digital_twin.cell_database import (
     write_dataset_revision_bundle,
 )
 from calb_ess_digital_twin.pybamm_models.runner import run_spme_reference
+from calb_ess_digital_twin.soh_engine import (
+    CalibrationRequest,
+    verify_calibration_bundle,
+    write_calibration_bundle,
+)
 from calb_ess_digital_twin.standard_study import (
     StandardStudyRequest,
     load_standard_study_bundle,
@@ -33,6 +38,8 @@ from calb_ess_digital_twin.study_comparison import (
     write_study_comparison_bundle,
 )
 from contracts.models import (
+    CalibrationFitJobPayload,
+    CalibrationFitJobResult,
     ComparisonJobPayload,
     ComparisonJobResult,
     DatasetRevisionJobPayload,
@@ -46,8 +53,12 @@ from .remote_store import RemoteJobStore, RemoteTransportError
 from .store import ArtifactRegistration, JobStore
 
 WorkerStore = JobStore | RemoteJobStore
-WorkerPayload = JobPayload | ComparisonJobPayload | DatasetRevisionJobPayload
-WorkerResult = RunResult | ComparisonJobResult | DatasetRevisionJobResult
+WorkerPayload = (
+    JobPayload | ComparisonJobPayload | DatasetRevisionJobPayload | CalibrationFitJobPayload
+)
+WorkerResult = (
+    RunResult | ComparisonJobResult | DatasetRevisionJobResult | CalibrationFitJobResult
+)
 
 
 class LeaseLostError(RuntimeError):
@@ -91,6 +102,8 @@ def execute_job_with_artifacts(
         if source_path is None:
             raise ValueError("dataset-revision jobs require exact local source evidence")
         return _execute_dataset_revision_job(payload, artifact_root, source_path)
+    if isinstance(payload, CalibrationFitJobPayload):
+        return _execute_calibration_fit_job(payload, artifact_root)
     if payload.engine != "standard-study":
         return ExecutionOutcome(result=execute_job(payload))
     request = StandardStudyRequest.model_validate(payload.standard_study_request)
@@ -241,6 +254,48 @@ def _execute_dataset_revision_job(
     return ExecutionOutcome(result=result, artifacts=tuple(registrations))
 
 
+def _execute_calibration_fit_job(
+    payload: CalibrationFitJobPayload, artifact_root: Path
+) -> ExecutionOutcome:
+    request = CalibrationRequest.model_validate(payload.calibration_request)
+    if request.calibration_id != str(payload.job_id):
+        raise ValueError("calibration request identity does not match job")
+    if request.code_revision != payload.code_revision:
+        raise ValueError("calibration code revision does not match job")
+    bundle_directory = artifact_root.resolve() / str(payload.job_id) / "calibration-fit"
+    if bundle_directory.exists():
+        calibration, _ = verify_calibration_bundle(request, bundle_directory)
+    else:
+        calibration, _ = write_calibration_bundle(request, bundle_directory)
+    registrations: list[ArtifactRegistration] = []
+    checksums: dict[str, str] = {}
+    for path in sorted(bundle_directory.iterdir()):
+        content = path.read_bytes()
+        checksum = hashlib.sha256(content).hexdigest()
+        checksums[path.name] = checksum
+        registrations.append(
+            ArtifactRegistration(
+                kind=path.name,
+                uri=path.resolve().as_uri(),
+                content_type="application/json",
+                size_bytes=len(content),
+                checksum_sha256=checksum,
+            )
+        )
+    result = CalibrationFitJobResult(
+        job_id=payload.job_id,
+        code_revision=payload.code_revision,
+        status="completed",
+        calibration_id=calibration.calibration_id,
+        fitted_model_version=calibration.model_version,
+        fit_converged=calibration.fit_converged,
+        approval_eligible=calibration.approval_eligible,
+        validation_rmse_fraction=calibration.metrics.validation_rmse_fraction,
+        artifact_checksums=checksums,
+    )
+    return ExecutionOutcome(result=result, artifacts=tuple(registrations))
+
+
 @contextmanager
 def keep_lease_alive(
     store: WorkerStore,
@@ -297,6 +352,8 @@ def run_cycle(
             payload = ComparisonJobPayload.model_validate_json(row["payload"])
         elif raw_payload.get("engine") == "dataset-revision":
             payload = DatasetRevisionJobPayload.model_validate_json(row["payload"])
+        elif raw_payload.get("engine") == "calibration-fit":
+            payload = CalibrationFitJobPayload.model_validate_json(row["payload"])
         else:
             payload = JobPayload.model_validate_json(row["payload"])
         interval = heartbeat_interval or max(lease_seconds / 3, 1)

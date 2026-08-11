@@ -11,6 +11,11 @@ from .calibration import (
     capacity_fraction,
     fit_semi_empirical_model,
 )
+from .calibration_bundle import (
+    CalibrationBundleManifest,
+    verify_calibration_bundle,
+    write_calibration_bundle,
+)
 from .calibration_observations import (
     RevisionObservationSelection,
     build_revision_observations,
@@ -28,6 +33,7 @@ from .extrapolation import (
 __all__ = [
     "AgingObservation",
     "CalibrationApprovalStatus",
+    "CalibrationBundleManifest",
     "CalibrationRequest",
     "CalibrationResult",
     "CalibrationValidityEnvelope",
@@ -44,4 +50,6 @@ __all__ = [
     "capacity_fraction",
     "extrapolate_soh",
     "fit_semi_empirical_model",
+    "verify_calibration_bundle",
+    "write_calibration_bundle",
 ]
