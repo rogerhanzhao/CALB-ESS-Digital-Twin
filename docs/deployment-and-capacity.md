@@ -25,6 +25,13 @@ Actual consumption depends on model order, mesh size, experiment length, solver 
 
 GPU is not required for standard PyBaMM solvers. Add GPU nodes only for validated neural surrogate models or accelerated calibration workloads. Prefer higher CPU clock, sufficient memory, and fast local scratch SSD for numerical runs.
 
+Version-comparison jobs are materially lighter than PyBaMM solves: they validate two retained
+annual result bundles, align exposure coordinates, calculate deltas, and write three small JSON
+files. A single 1–2 vCPU / 1–2 GB RAM comparison worker is normally sufficient for the planned
+low-frequency workflow. Keep it in an independent queue so its limit can be set separately; do not
+use this estimate for future Monte Carlo, optimization, dispatch time-series, or electrochemical
+parameter sweeps.
+
 ## Capacity guardrails
 
 - Default to one numerical job per worker process and cap solver memory.

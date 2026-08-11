@@ -65,6 +65,19 @@ type EngineeringReview = {
   sohResultChecksumSha256: string;
   createdAt: string;
 };
+type StudyComparison = {
+  id: string;
+  baselineRunId: string;
+  currentRunId: string;
+  comparisonVersion: string;
+  codeRevision: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  attempt: number;
+  error: string | null;
+  finalCapacityDeltaFraction: number | null;
+  maximumAbsoluteCapacityDeltaFraction: number | null;
+  createdAt: string;
+};
 
 type ProductOption = { id: string; model: string; revision: string; status: string };
 type CalibrationOption = {
@@ -140,6 +153,12 @@ export default function Home() {
   const [reviewDecision, setReviewDecision] = useState<EngineeringReview["decision"]>("approved");
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [comparisons, setComparisons] = useState<StudyComparison[]>([]);
+  const [comparisonBaseline, setComparisonBaseline] = useState("");
+  const [comparisonCurrent, setComparisonCurrent] = useState("");
+  const [comparisonVersion, setComparisonVersion] = useState("V1");
+  const [comparisonCodeRevision, setComparisonCodeRevision] = useState("compare-V1");
+  const [submittingComparison, setSubmittingComparison] = useState(false);
 
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
@@ -162,16 +181,20 @@ export default function Home() {
         if (!active) return;
         setAuth("authenticated");
         setRuns(payload.simulations);
+        const comparisonCandidates = payload.simulations.filter((run) => !run.demo && run.engine === "standard-study" && run.status === "completed");
+        setComparisonBaseline((value) => value || comparisonCandidates[0]?.id || "");
+        setComparisonCurrent((value) => value || comparisonCandidates[1]?.id || "");
         setSelected((current) =>
           payload.simulations.some((run) => run.id === current)
             ? current
             : payload.simulations[0]?.id ?? current,
         );
         setNotice("任务已同步 · 关闭页面不会中断计算");
-        const [productResponse, calibrationResponse, standardResponse] = await Promise.all([
+        const [productResponse, calibrationResponse, standardResponse, comparisonResponse] = await Promise.all([
           fetch("/api/products", { cache: "no-store" }),
           fetch("/api/calibrations", { cache: "no-store" }),
           fetch("/api/standard-scenarios", { cache: "no-store" }),
+          fetch("/api/study-comparisons", { cache: "no-store" }),
         ]);
         if (productResponse.ok) {
           const data = await productResponse.json() as { products: ProductOption[] };
@@ -186,6 +209,10 @@ export default function Home() {
           const data = await standardResponse.json() as { standardScenarios: StandardScenarioOption[] };
           setStandardScenarios(data.standardScenarios);
           setSelectedStandardScenario((current) => current || data.standardScenarios.find((item) => item.status === "released")?.id || "");
+        }
+        if (comparisonResponse.ok) {
+          const data = await comparisonResponse.json() as { comparisons: StudyComparison[] };
+          setComparisons(data.comparisons);
         }
       } catch {
         // Network failure during local preview: keep the rows already on screen.
@@ -232,6 +259,41 @@ export default function Home() {
   const completedCount = runs.filter((run) => run.status === "completed").length;
   /** Every run is demonstrator output until a compute worker is connected. */
   const anyDemo = runs.some((run) => run.demo);
+  const comparableRuns = runs.filter((run) => !run.demo && run.engine === "standard-study" && run.status === "completed");
+
+  async function submitComparison(event: FormEvent) {
+    event.preventDefault();
+    setSubmittingComparison(true);
+    try {
+      const response = await fetch("/api/study-comparisons", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({
+          baselineRunId: comparisonBaseline,
+          currentRunId: comparisonCurrent,
+          comparisonVersion,
+          codeRevision: comparisonCodeRevision,
+          policy: {
+            capacity_fraction_tolerance: 0.000001,
+            elapsed_days_tolerance: 0.001,
+            absolute_throughput_ah_tolerance: 0.001,
+            cycle_count_tolerance: 0.001,
+            equivalent_full_cycles_tolerance: 0.001,
+          },
+        }),
+      });
+      const payload = await response.json() as { comparison?: StudyComparison; error?: string; details?: string[] };
+      if (!response.ok || !payload.comparison) {
+        throw new Error(payload.details?.join("；") || payload.error || "对比任务提交失败");
+      }
+      setComparisons((items) => [payload.comparison!, ...items.filter((item) => item.id !== payload.comparison!.id)]);
+      setNotice("对比任务已进入独立计算队列 · 关闭页面不会中断");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "对比任务提交失败");
+    } finally {
+      setSubmittingComparison(false);
+    }
+  }
 
   async function submitRun(event: FormEvent) {
     event.preventDefault();
@@ -452,8 +514,16 @@ export default function Home() {
           </section>
 
           <section className="panel domain-card" id="results">
-            <div className="panel-head"><div><p className="eyebrow">RESULT LIBRARY</p><h2>结果与版本</h2></div><span className="stage-badge demo">仅演示</span></div>
-            <div className="empty-state"><strong>尚无可发布的仿真结果</strong><span>正式结果将绑定产品、数据版本、模型版本、代码修订和标准工况，历史版本不会被覆盖。</span></div>
+            <div className="panel-head"><div><p className="eyebrow">RESULT COMPARISON</p><h2>结果版本对比</h2></div><span className="stage-badge ready">独立计算队列</span></div>
+            <form className="compact-form" onSubmit={submitComparison}>
+              <label>基准结果<select value={comparisonBaseline} onChange={(event) => setComparisonBaseline(event.target.value)} required><option value="">选择已完成标准研究</option>{comparableRuns.map((run) => <option key={run.id} value={run.id}>{run.name} · {run.id.slice(0, 8)}</option>)}</select></label>
+              <label>当前结果<select value={comparisonCurrent} onChange={(event) => setComparisonCurrent(event.target.value)} required><option value="">选择不同版本</option>{comparableRuns.map((run) => <option key={run.id} value={run.id}>{run.name} · {run.id.slice(0, 8)}</option>)}</select></label>
+              <label>对比版本<input value={comparisonVersion} onChange={(event) => setComparisonVersion(event.target.value)} minLength={1} maxLength={80} required /></label>
+              <label>代码修订<input value={comparisonCodeRevision} onChange={(event) => setComparisonCodeRevision(event.target.value)} minLength={7} maxLength={64} required /></label>
+              <button className="secondary-button" disabled={submittingComparison || comparableRuns.length < 2 || comparisonBaseline === comparisonCurrent}>{submittingComparison ? "正在提交…" : "创建不可变对比"}</button>
+            </form>
+            <p className="boundary-note">仅允许两个已完成的真实标准研究；时间轴、吞吐量、循环数和 EFC 使用显式工程容差校验。对比结果用于版本追踪，不自动构成质保变更。</p>
+            <div className="review-history"><strong>对比任务</strong>{comparisons.length ? comparisons.slice(0, 5).map((item) => <article key={item.id}><b>{item.comparisonVersion} · {statusLabel[item.status]}</b><span>{item.finalCapacityDeltaFraction === null ? "等待计算结果" : `期末容量差 ${(item.finalCapacityDeltaFraction * 100).toFixed(3)}%，最大绝对差 ${(item.maximumAbsoluteCapacityDeltaFraction! * 100).toFixed(3)}%`}</span><small>{item.baselineRunId.slice(0, 8)} → {item.currentRunId.slice(0, 8)} · 尝试 {item.attempt}{item.error ? ` · ${item.error}` : ""}</small>{item.status === "completed" && <a href={`/api/study-comparisons/${encodeURIComponent(item.id)}/artifacts/comparison-result.json?download=1`}>下载不可变对比结果</a>}</article>) : <div className="empty-state"><strong>尚无对比任务</strong><span>先完成至少两个标准研究版本，再创建对比。</span></div>}</div>
           </section>
 
           <section className="panel domain-card full" id="warranty">

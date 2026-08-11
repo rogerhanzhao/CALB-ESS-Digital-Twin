@@ -338,3 +338,53 @@ export const engineeringReviews = sqliteTable("engineering_reviews", {
     sql`${table.decision} in ('approved', 'changes_requested', 'rejected')`,
   ),
 ]);
+
+/** Independent compute jobs that compare two immutable standard-study results. */
+export const studyComparisons = sqliteTable("study_comparisons", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  baselineRunId: text("baseline_run_id").notNull().references(() => runs.id),
+  currentRunId: text("current_run_id").notNull().references(() => runs.id),
+  comparisonVersion: text("comparison_version").notNull(),
+  codeRevision: text("code_revision").notNull(),
+  jobContractVersion: text("job_contract_version").notNull(),
+  payloadObjectKey: text("payload_object_key").notNull(),
+  payloadChecksumSha256: text("payload_checksum_sha256").notNull(),
+  status: text("status").notNull().default("queued"),
+  attempt: integer("attempt").notNull().default(0),
+  leaseExpiresAt: text("lease_expires_at"),
+  heartbeatAt: text("heartbeat_at"),
+  workerId: text("worker_id"),
+  error: text("error"),
+  finalCapacityDeltaFraction: real("final_capacity_delta_fraction"),
+  maximumAbsoluteCapacityDeltaFraction: real("maximum_absolute_capacity_delta_fraction"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_study_comparisons_user_created").on(table.userId, table.createdAt),
+  index("idx_study_comparisons_claim").on(table.status, table.leaseExpiresAt),
+  uniqueIndex("uq_study_comparisons_user_idempotency").on(table.userId, table.idempotencyKey),
+  check(
+    "ck_study_comparisons_status",
+    sql`${table.status} in ('queued', 'running', 'completed', 'failed', 'cancelled')`,
+  ),
+  check(
+    "ck_study_comparisons_distinct_runs",
+    sql`${table.baselineRunId} <> ${table.currentRunId}`,
+  ),
+]);
+
+export const comparisonArtifacts = sqliteTable("comparison_artifacts", {
+  id: text("id").primaryKey(),
+  comparisonId: text("comparison_id").notNull().references(() => studyComparisons.id),
+  kind: text("kind").notNull(),
+  uri: text("uri").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  checksum: text("checksum").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_comparison_artifacts_comparison").on(table.comparisonId),
+  uniqueIndex("uq_comparison_artifacts_kind").on(table.comparisonId, table.kind),
+]);

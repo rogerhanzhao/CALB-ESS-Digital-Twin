@@ -268,6 +268,12 @@ def main() -> None:
     parser.add_argument("--poll-seconds", type=float, default=2.0)
     parser.add_argument("--artifact-root", type=Path)
     parser.add_argument("--remote-base-url")
+    parser.add_argument(
+        "--remote-job-kind",
+        choices=("standard-study", "study-comparison"),
+        default="standard-study",
+        help="Select the independent hosted queue polled by this worker process.",
+    )
     args = parser.parse_args()
     if args.remote_base_url:
         token = os.environ.get("CALB_ESS_WORKER_API_TOKEN", "")
@@ -275,7 +281,7 @@ def main() -> None:
             parser.error("CALB_ESS_WORKER_API_TOKEN is required with --remote-base-url")
         remote_artifact_root = args.artifact_root or Path("data/interim/remote-artifacts")
         store: WorkerStore = RemoteJobStore(
-            args.remote_base_url, token, remote_artifact_root
+            args.remote_base_url, token, remote_artifact_root, args.remote_job_kind
         )
     else:
         store = JobStore(args.db)

@@ -17,6 +17,11 @@ EXPECTED_STANDARD_STUDY_ARTIFACTS = {
     "soh-result.json",
     "study-request.json",
 }
+EXPECTED_STUDY_COMPARISON_ARTIFACTS = {
+    "comparison-manifest.json",
+    "comparison-request.json",
+    "comparison-result.json",
+}
 
 
 class RemoteTransportError(RuntimeError):
@@ -24,20 +29,39 @@ class RemoteTransportError(RuntimeError):
 
 
 class RemoteJobStore:
-    def __init__(self, base_url: str, token: str, local_artifact_root: Path):
+    def __init__(
+        self,
+        base_url: str,
+        token: str,
+        local_artifact_root: Path,
+        job_kind: str = "standard-study",
+    ):
         parsed = urlparse(base_url)
         if parsed.scheme != "https" and parsed.hostname not in {"127.0.0.1", "localhost"}:
             raise ValueError("remote worker API must use HTTPS except on localhost")
         if not token:
             raise ValueError("remote worker API token must not be empty")
+        if job_kind not in {"standard-study", "study-comparison"}:
+            raise ValueError("remote job kind must be standard-study or study-comparison")
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.local_artifact_root = local_artifact_root
+        self.job_kind = job_kind
+        self.route_prefix = (
+            "/api/worker/jobs"
+            if job_kind == "standard-study"
+            else "/api/worker/comparisons"
+        )
+        self.expected_artifacts = (
+            EXPECTED_STANDARD_STUDY_ARTIFACTS
+            if job_kind == "standard-study"
+            else EXPECTED_STUDY_COMPARISON_ARTIFACTS
+        )
 
     def claim(self, worker_id: str, lease_seconds: int = 60) -> dict[str, Any] | None:
         response = self._json_request(
             "POST",
-            "/api/worker/jobs/claim",
+            f"{self.route_prefix}/claim",
             {"workerId": worker_id, "leaseSeconds": lease_seconds},
             accepted=(200, 204, 409),
         )
@@ -51,7 +75,7 @@ class RemoteJobStore:
     def heartbeat(self, job_id: str, worker_id: str, lease_seconds: int = 60) -> bool:
         response = self._json_request(
             "POST",
-            f"/api/worker/jobs/{quote(job_id, safe='')}/heartbeat",
+            f"{self.route_prefix}/{quote(job_id, safe='')}/heartbeat",
             {"workerId": worker_id, "leaseSeconds": lease_seconds},
             accepted=(200, 409),
         )
@@ -65,14 +89,14 @@ class RemoteJobStore:
         artifacts: tuple[ArtifactRegistration, ...] = (),
     ) -> bool:
         kinds = {item["kind"] for item in artifacts}
-        if len(artifacts) != len(EXPECTED_STANDARD_STUDY_ARTIFACTS) or kinds != (
-            EXPECTED_STANDARD_STUDY_ARTIFACTS
-        ):
-            raise ValueError("hosted standard-study completion requires four exact artifacts")
+        if len(artifacts) != len(self.expected_artifacts) or kinds != self.expected_artifacts:
+            raise ValueError(
+                f"hosted {self.job_kind} completion requires its exact artifact bundle"
+            )
         uploaded = [self._upload_artifact(job_id, worker_id, item) for item in artifacts]
         response = self._json_request(
             "POST",
-            f"/api/worker/jobs/{quote(job_id, safe='')}/complete",
+            f"{self.route_prefix}/{quote(job_id, safe='')}/complete",
             {"workerId": worker_id, "result": result, "artifacts": uploaded},
             accepted=(200, 409),
         )
@@ -81,7 +105,7 @@ class RemoteJobStore:
     def fail(self, job_id: str, worker_id: str, error: str) -> bool:
         response = self._json_request(
             "POST",
-            f"/api/worker/jobs/{quote(job_id, safe='')}/fail",
+            f"{self.route_prefix}/{quote(job_id, safe='')}/fail",
             {"workerId": worker_id, "error": error[:4000]},
             accepted=(200, 409),
         )
@@ -100,7 +124,7 @@ class RemoteJobStore:
             path = Path(uri.path[1:])
         content = path.read_bytes()
         request = Request(
-            f"{self.base_url}/api/worker/jobs/{quote(job_id, safe='')}/artifacts/"
+            f"{self.base_url}{self.route_prefix}/{quote(job_id, safe='')}/artifacts/"
             f"{quote(artifact['kind'], safe='')}",
             data=content,
             method="PUT",

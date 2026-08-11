@@ -70,6 +70,8 @@ reuse the directory only after the exact request, every file checksum, the recom
 and the manifest identities all agree. The worker result exposes only summary deltas and artifact
 checksums; the complete annual comparison remains in the evidence file.
 
-Hosted claim, upload, and completion endpoints are a separate transport slice. Until those
-endpoints accept the independent comparison contract, remote workers continue claiming only
-standard-study jobs; this local adapter does not imply hosted comparison availability.
+The hosted control plane now exposes an independent D1 lease queue and R2 namespace under
+`/api/worker/comparisons/**`. Start a dedicated process with
+`--remote-base-url <site-url> --remote-job-kind study-comparison`; it claims only comparison jobs,
+uploads the exact three-file bundle, and commits summary deltas only after R2 metadata and SHA-256
+checks pass. Browser submission is limited to two owned, completed standard-study evidence sets.

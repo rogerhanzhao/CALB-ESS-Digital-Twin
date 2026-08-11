@@ -78,6 +78,13 @@
       "when": 1786468175728,
       "tag": "0010_plain_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1786469501276,
+      "tag": "0011_tired_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

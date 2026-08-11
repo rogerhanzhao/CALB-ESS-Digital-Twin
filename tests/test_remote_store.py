@@ -125,8 +125,54 @@ def test_remote_completion_rejects_partial_bundle_before_network(
         lambda *_args, **_kwargs: pytest.fail("network must not be called"),
     )
     store = RemoteJobStore("https://example.com", "secret", tmp_path)
-    with pytest.raises(ValueError, match="four exact artifacts"):
+    with pytest.raises(ValueError, match="exact artifact bundle"):
         store.complete("job-1", "worker-a", {}, ())
+
+
+def test_comparison_worker_uses_independent_routes_and_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_id = str(uuid4())
+    names = (
+        "comparison-manifest.json",
+        "comparison-request.json",
+        "comparison-result.json",
+    )
+    for name in names:
+        (tmp_path / name).write_bytes(b"{}\n")
+    checksum = "b" * 64
+    urls: list[str] = []
+
+    def fake_open(request, timeout):
+        assert timeout == 30
+        urls.append(request.full_url)
+        if request.get_method() == "PUT":
+            kind = request.full_url.rsplit("/", 1)[-1]
+            return FakeResponse(200, {"artifact": {
+                "kind": kind,
+                "objectKey": f"comparisons/{job_id}/results/{kind}",
+                "contentType": "application/json",
+                "sizeBytes": 3,
+                "checksumSha256": checksum,
+            }})
+        return FakeResponse(200, {"status": "completed"})
+
+    monkeypatch.setattr(remote_module, "urlopen", fake_open)
+    store = RemoteJobStore(
+        "https://example.com", "secret", tmp_path, "study-comparison"
+    )
+    registrations = tuple(
+        {
+            "kind": name,
+            "uri": (tmp_path / name).resolve().as_uri(),
+            "content_type": "application/json",
+            "size_bytes": 3,
+            "checksum_sha256": checksum,
+        }
+        for name in names
+    )
+    assert store.complete(job_id, "worker-a", {}, registrations)
+    assert all("/api/worker/comparisons/" in url for url in urls)
 
 
 def test_retryable_completion_outage_does_not_mark_model_failed(tmp_path: Path) -> None:

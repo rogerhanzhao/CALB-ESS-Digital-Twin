@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  comparisonJobPayloadIsValid,
+  comparisonResultObjectKey,
+  parseComparisonWorkerCompletion,
   parseWorkerCompletion,
   parseWorkerIdentity,
   resultObjectKey,
@@ -16,6 +19,11 @@ const CHECKSUMS = {
   "scenario-exposure.json": "b".repeat(64),
   "soh-result.json": "c".repeat(64),
   "study-request.json": "d".repeat(64),
+};
+const COMPARISON_CHECKSUMS = {
+  "comparison-manifest.json": "e".repeat(64),
+  "comparison-request.json": "f".repeat(64),
+  "comparison-result.json": "0".repeat(64),
 };
 
 function completion() {
@@ -106,6 +114,52 @@ test("completion requires four exact artifacts tied to result checksums", () => 
 
   const wrongJob = completion();
   assert.equal(parseWorkerCompletion(wrongJob, crypto.randomUUID()), null);
+});
+
+test("comparison claim requires the independent contract and matching identity", () => {
+  const payload = {
+    contract_version: "1.0",
+    job_id: RUN_ID,
+    user_id: "alex",
+    engine: "study-comparison",
+    model_version: "study-comparison-V0.2",
+    code_revision: "abcdef1",
+    study_comparison_request: {},
+    submitted_at: "2026-08-12T00:00:00Z",
+  };
+  assert.equal(comparisonJobPayloadIsValid(payload, RUN_ID), true);
+  assert.equal(comparisonJobPayloadIsValid({ ...payload, engine: "standard-study" }, RUN_ID), false);
+  assert.equal(comparisonJobPayloadIsValid(payload, crypto.randomUUID()), false);
+});
+
+test("comparison completion requires three exact immutable artifacts", () => {
+  const artifacts = Object.entries(COMPARISON_CHECKSUMS).map(([kind, checksumSha256]) => ({
+    kind,
+    objectKey: comparisonResultObjectKey(RUN_ID, kind as keyof typeof COMPARISON_CHECKSUMS),
+    contentType: "application/json",
+    sizeBytes: 100,
+    checksumSha256,
+  }));
+  const value = {
+    workerId: "comparison-worker:123",
+    result: {
+      contract_version: "1.0",
+      job_id: RUN_ID,
+      engine: "study-comparison",
+      model_version: "study-comparison-V0.2",
+      code_revision: "abcdef1",
+      status: "completed",
+      comparison_version: "comparison-V1",
+      final_capacity_delta_fraction: -0.01,
+      maximum_absolute_capacity_delta_fraction: 0.02,
+      artifact_checksums: COMPARISON_CHECKSUMS,
+      completed_at: "2026-08-12T00:00:00Z",
+    },
+    artifacts,
+  };
+  assert.ok(parseComparisonWorkerCompletion(value, RUN_ID));
+  assert.equal(parseComparisonWorkerCompletion({ ...value, artifacts: artifacts.slice(1) }, RUN_ID), null);
+  assert.equal(parseComparisonWorkerCompletion(value, crypto.randomUUID()), null);
 });
 
 test("SHA-256 helper hashes exact bytes", async () => {

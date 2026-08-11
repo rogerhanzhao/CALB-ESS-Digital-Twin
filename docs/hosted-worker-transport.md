@@ -1,6 +1,6 @@
 # V0.2 Hosted worker transport
 
-The hosted control plane exposes a private transport for standard-study workers. Browser identity
+The hosted control plane exposes private transports for standard-study and study-comparison workers. Browser identity
 and compute-worker identity are separate: product APIs use authenticated Sites user headers, while
 `/api/worker/**` requires the server-managed `WORKER_API_TOKEN` bearer secret. The secret is never
 present in client code or `.openai/hosting.json`.
@@ -28,6 +28,12 @@ present in client code or `.openai/hosting.json`.
 The Python worker selects this transport with `--remote-base-url`. Its bearer token comes only from
 the `CALB_ESS_WORKER_API_TOKEN` process environment. Non-local HTTP endpoints are rejected; hosted
 workers require HTTPS.
+
+Comparison workers run as a separate process with
+`--remote-job-kind study-comparison`. They poll `/api/worker/comparisons/**`, upload exactly the
+three comparison evidence files, and never claim or mutate standard-study rows. This separation
+keeps small version-comparison workloads from changing the semantics or capacity policy of the
+numerical simulation queue.
 
 ## Deliberately unresolved submission boundary
 
