@@ -12,6 +12,7 @@ export const DATASET_STATUSES = ["registered", "validated", "rejected"] as const
 export const VALIDATION_STATUSES = ["pending", "pass", "warning", "reject"] as const;
 export const SCENARIO_STATUSES = ["draft", "released", "superseded"] as const;
 export const CALIBRATION_STATUSES = ["draft", "under_review", "approved", "rejected", "superseded"] as const;
+export const ENGINEERING_REVIEW_DECISIONS = ["approved", "changes_requested", "rejected"] as const;
 
 /** Product master data. Released records are immutable; revisions create a new row. */
 export const cellProducts = sqliteTable("cell_products", {
@@ -313,4 +314,27 @@ export const runArtifacts = sqliteTable("run_artifacts", {
 }, (table) => [
   index("idx_run_artifacts_run").on(table.runId),
   uniqueIndex("uq_run_artifacts_run_kind").on(table.runId, table.kind),
+]);
+
+/** Append-only human decisions over one exact completed standard-study evidence set. */
+export const engineeringReviews = sqliteTable("engineering_reviews", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => runs.id),
+  userId: text("user_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  decision: text("decision", { enum: ENGINEERING_REVIEW_DECISIONS }).notNull(),
+  comment: text("comment").notNull(),
+  reviewerId: text("reviewer_id").notNull(),
+  reviewerEmail: text("reviewer_email"),
+  manifestChecksumSha256: text("manifest_checksum_sha256").notNull(),
+  sohResultChecksumSha256: text("soh_result_checksum_sha256").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_engineering_reviews_run_created").on(table.runId, table.createdAt),
+  index("idx_engineering_reviews_user_created").on(table.userId, table.createdAt),
+  uniqueIndex("uq_engineering_reviews_user_idempotency").on(table.userId, table.idempotencyKey),
+  check(
+    "ck_engineering_reviews_decision",
+    sql`${table.decision} in ('approved', 'changes_requested', 'rejected')`,
+  ),
 ]);

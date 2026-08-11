@@ -55,6 +55,16 @@ type SohResult = {
     within_validity_envelope: boolean;
   }>;
 };
+type EngineeringReview = {
+  id: string;
+  runId: string;
+  decision: "approved" | "changes_requested" | "rejected";
+  comment: string;
+  reviewerEmail: string | null;
+  manifestChecksumSha256: string;
+  sohResultChecksumSha256: string;
+  createdAt: string;
+};
 
 type ProductOption = { id: string; model: string; revision: string; status: string };
 type CalibrationOption = {
@@ -126,6 +136,10 @@ export default function Home() {
   const [submittingStandardStudy, setSubmittingStandardStudy] = useState(false);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [sohResult, setSohResult] = useState<SohResult | null>(null);
+  const [reviewState, setReviewState] = useState<{ runId: string; reviews: EngineeringReview[] } | null>(null);
+  const [reviewDecision, setReviewDecision] = useState<EngineeringReview["decision"]>("approved");
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const navigateTo = (section: SectionId) => {
     setActiveSection(section);
@@ -190,6 +204,11 @@ export default function Home() {
       if (!response.ok || !active) return;
       const detail = await response.json() as RunDetail & { simulation: Simulation };
       setRunDetail({ ...detail, runId: selected });
+      const reviewResponse = await fetch(`/api/simulations/${encodeURIComponent(selected)}/reviews`, { cache: "no-store" });
+      if (reviewResponse.ok && active) {
+        const reviewPayload = await reviewResponse.json() as { reviews: EngineeringReview[] };
+        setReviewState({ runId: selected, reviews: reviewPayload.reviews });
+      }
       const sohArtifact = detail.artifacts.find((artifact) => artifact.kind === "soh-result.json");
       if (!sohArtifact) return;
       const artifactResponse = await fetch(sohArtifact.href, { cache: "no-store" });
@@ -207,6 +226,8 @@ export default function Home() {
   );
   const currentDetail = runDetail?.runId === current?.id ? runDetail : null;
   const currentSohResult = sohResult?.runId === current?.id ? sohResult : null;
+  const currentReviews = reviewState?.runId === current?.id ? reviewState.reviews : [];
+  const latestReview = currentReviews.at(-1);
   const activeCount = runs.filter((run) => run.status === "running" || run.status === "queued").length;
   const completedCount = runs.filter((run) => run.status === "completed").length;
   /** Every run is demonstrator output until a compute worker is connected. */
@@ -291,6 +312,33 @@ export default function Home() {
       setNotice(error instanceof Error ? error.message : "标准研究提交失败");
     } finally {
       setSubmittingStandardStudy(false);
+    }
+  }
+
+  async function submitEngineeringReview(event: FormEvent) {
+    event.preventDefault();
+    if (!current || current.demo) return;
+    setSubmittingReview(true);
+    try {
+      const response = await fetch(`/api/simulations/${encodeURIComponent(current.id)}/reviews`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({ decision: reviewDecision, comment: reviewComment }),
+      });
+      const payload = await response.json() as { review?: EngineeringReview; error?: string; details?: string[] };
+      if (!response.ok || !payload.review) {
+        throw new Error(payload.details?.join("；") ?? payload.error ?? "审核记录保存失败");
+      }
+      setReviewState((state) => ({
+        runId: current.id,
+        reviews: state?.runId === current.id ? [...state.reviews, payload.review!] : [payload.review!],
+      }));
+      setReviewComment("");
+      setNotice("工程审核决定已绑定到当前结果证据");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "审核记录保存失败");
+    } finally {
+      setSubmittingReview(false);
     }
   }
 
@@ -409,8 +457,9 @@ export default function Home() {
           </section>
 
           <section className="panel domain-card full" id="warranty">
-            <div className="panel-head"><div><p className="eyebrow">REVIEW &amp; WARRANTY</p><h2>审核与质保分析</h2></div><span className="stage-badge waiting">未开放</span></div>
+            <div className="panel-head"><div><p className="eyebrow">REVIEW &amp; WARRANTY</p><h2>审核与质保分析</h2></div><span className={`stage-badge ${latestReview?.decision === "approved" ? "ready" : "waiting"}`}>{latestReview ? ({ approved: "工程审核通过", changes_requested: "要求修改", rejected: "工程审核拒绝" }[latestReview.decision]) : "待工程审核"}</span></div>
             <div className="review-flow"><span>技术校核<small>模型边界与误差</small></span><b>→</b><span>业务审核<small>标准工况与口径</small></span><b>→</b><span>版本发布<small>生成不可变结果</small></span><b>→</b><span>质保分析<small>阈值与余量</small></span></div>
+            {current?.engine === "standard-study" && current.status === "completed" ? <div className="review-workbench"><div className="review-history"><strong>当前结果审核记录</strong>{currentReviews.length ? currentReviews.map((review) => <article key={review.id}><b>{({ approved: "通过", changes_requested: "要求修改", rejected: "拒绝" }[review.decision])}</b><span>{review.comment}</span><small>{new Date(review.createdAt).toLocaleString("zh-CN")} · {review.reviewerEmail ?? "已认证审核人"} · 证据 {review.sohResultChecksumSha256.slice(0, 10)}</small></article>) : <p className="helper">尚无审核决定。通过决定只允许写入包络内、物理有效且证据完整的正式结果。</p>}</div><form className="review-form" onSubmit={submitEngineeringReview}><label>审核决定<select value={reviewDecision} onChange={(event) => setReviewDecision(event.target.value as EngineeringReview["decision"])}><option value="approved">工程审核通过</option><option value="changes_requested">要求修改 / 补充证据</option><option value="rejected">拒绝当前结果</option></select></label><label>审核意见<textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} minLength={10} maxLength={2000} placeholder="记录模型边界、数据充分性和用途限制，至少 10 个字符" required /></label><button className="secondary-button" disabled={submittingReview}>{submittingReview ? "正在保存…" : "记录审核决定"}</button><p className="helper">工程审核不会把结果自动转为质保承诺；当前模型尚未完成系统层折算与不确定性量化。</p></form></div> : <p className="boundary-note">请选择一个已完成的真实标准研究后进行审核。演示任务不能进入审核或质保流程。</p>}
           </section>
         </div>
         <footer className="project-footer"><span>CALB ESS Digital Twin · V0.1</span><span>Concept &amp; System Design · Alex.Z</span><span>© 2026 Alex.Z</span></footer>

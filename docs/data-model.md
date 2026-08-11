@@ -125,6 +125,15 @@ The hosted standard-study worker currently registers four exact JSON artifacts:
 applications receive an owner-authorized application URL, not the R2 URI. The read path verifies
 the stored byte count and SHA-256 again before returning evidence.
 
+## `engineering_reviews`
+
+Append-only human decisions over completed standard-study evidence. Execution state remains on
+`runs`; review state is deliberately separate. Each decision stores the authenticated reviewer,
+substantive comment, timestamp, idempotency key, and the exact manifest and SOH-result checksums
+reviewed. The latest row is the current decision, while prior requests for changes or rejections
+remain auditable. See `docs/engineering-review-workflow.md` for the approval gate and warranty
+boundary.
+
 ## Write ownership
 
 Exactly one writer per field, to prevent the read-path/worker race found in the review:
