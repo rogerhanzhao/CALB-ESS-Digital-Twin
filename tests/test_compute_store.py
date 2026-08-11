@@ -93,9 +93,9 @@ def test_worker_renews_lease_during_long_execution(tmp_path, monkeypatch) -> Non
     )
     original = worker_module.execute_job
 
-    def slow_job(job):
+    def slow_job(job, context):
         time.sleep(0.16)
-        return original(job)
+        return original(job, context)
 
     monkeypatch.setattr(worker_module, "execute_job", slow_job)
     heartbeats = 0
@@ -111,3 +111,60 @@ def test_worker_renews_lease_during_long_execution(tmp_path, monkeypatch) -> Non
     assert run_once(store, "worker-a", lease_seconds=1, heartbeat_interval=0.04)
     assert heartbeats >= 2
     assert store.get(str(payload.job_id))["status"] == "completed"
+
+
+def test_reclaimed_job_resumes_from_latest_checkpoint(tmp_path, monkeypatch) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    payload = JobPayload(
+        job_id=uuid4(),
+        scenario_id=uuid4(),
+        user_id="alex",
+        engine="stub",
+        model_version="stub-1",
+        code_revision="1234567",
+        scenario=ScenarioInput(
+            name="resume",
+            cell_param_set_version=None,
+            horizon_years=1,
+            cycles_per_day=0.0,
+            depth_of_discharge=0.0,
+            soc_window_min=0.0,
+            soc_window_max=1.0,
+            ambient_temperature_c=25.0,
+            initial_soc=0.5,
+            end_of_life_fraction=0.8,
+        ),
+    )
+    job_id = str(payload.job_id)
+    assert store.enqueue(job_id, payload.model_dump(mode="json"))
+    assert store.claim("worker-a", lease_seconds=1) is not None
+    assert store.checkpoint(job_id, "worker-a", {"completed_year": 7})
+    with store.connect() as db:
+        db.execute(
+            "UPDATE jobs SET lease_expires_at=? WHERE id=?",
+            ((utcnow() - timedelta(seconds=1)).isoformat(), job_id),
+        )
+
+    observed: dict | None = None
+    original = worker_module.execute_job
+
+    def observe_resume(job, context):
+        nonlocal observed
+        observed = context.resume_from
+        return original(job, context)
+
+    monkeypatch.setattr(worker_module, "execute_job", observe_resume)
+    assert run_once(store, "worker-b")
+    assert observed == {"completed_year": 7}
+    row = store.get(job_id)
+    assert row is not None
+    assert row["status"] == "completed"
+    assert row["checkpoint"] is None
+
+
+def test_checkpoint_write_requires_current_lease_owner(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    store.enqueue("job-1", {"job_id": "job-1"})
+    assert store.claim("worker-a") is not None
+    assert not store.checkpoint("job-1", "worker-b", {"unsafe": True})
+    assert store.get_checkpoint("job-1") is None

@@ -110,10 +110,21 @@ class JobStore:
             )
             return cursor.rowcount == 1
 
+    def get_checkpoint(self, job_id: str) -> dict | None:
+        """Return the latest durable resume state, if the job has produced one."""
+        row = self.get(job_id)
+        if row is None or row["checkpoint"] is None:
+            return None
+        value = json.loads(row["checkpoint"])
+        if not isinstance(value, dict):
+            raise TypeError("stored checkpoint must be a JSON object")
+        return value
+
     def complete(self, job_id: str, worker_id: str, result: dict) -> bool:
         with self.connect() as db:
             cursor = db.execute(
-                """UPDATE jobs SET status='completed', result=?, lease_expires_at=NULL,
+                """UPDATE jobs SET status='completed', result=?, checkpoint=NULL,
+                   lease_expires_at=NULL,
                    updated_at=? WHERE id=? AND worker_id=? AND status='running'""",
                 (json.dumps(result), utcnow().isoformat(), job_id, worker_id),
             )

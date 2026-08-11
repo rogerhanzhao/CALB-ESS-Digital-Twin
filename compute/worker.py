@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import socket
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, Thread
 
@@ -16,12 +17,23 @@ from contracts.models import JobPayload, RunResult, Uncertainty
 from .store import JobStore
 
 
-def execute_job(payload: JobPayload) -> RunResult:
+@dataclass(frozen=True)
+class ExecutionContext:
+    """Durable state offered to an engine without exposing queue ownership details."""
+
+    resume_from: dict | None
+    save_checkpoint: Callable[[dict], None]
+
+
+def execute_job(payload: JobPayload, context: ExecutionContext) -> RunResult:
     if payload.engine == "pybamm-spme":
         result, _ = run_spme_reference(payload)
         return result
     if payload.engine != "stub":
         raise ValueError(f"engine is not implemented by this worker: {payload.engine}")
+    # The stub proves the durable lifecycle without claiming numerical progress. Real ageing
+    # engines will checkpoint solver state or completed time slices through the same callback.
+    context.save_checkpoint({"phase": "validated", "resume_from": context.resume_from})
     return RunResult(
         job_id=payload.job_id,
         engine="stub",
@@ -76,8 +88,17 @@ def run_once(
     try:
         payload = JobPayload.model_validate_json(row["payload"])
         interval = heartbeat_interval or max(lease_seconds / 3, 1)
+
+        def save_checkpoint(value: dict) -> None:
+            if not store.checkpoint(job_id, worker_id, value):
+                raise RuntimeError("worker lost its lease before checkpointing")
+
+        context = ExecutionContext(
+            resume_from=store.get_checkpoint(job_id),
+            save_checkpoint=save_checkpoint,
+        )
         with keep_lease_alive(store, job_id, worker_id, lease_seconds, interval) as lease_lost:
-            result = execute_job(payload)
+            result = execute_job(payload, context)
         if lease_lost.is_set():
             raise RuntimeError("worker lost its lease during execution")
         if not store.complete(job_id, worker_id, result.model_dump(mode="json")):
