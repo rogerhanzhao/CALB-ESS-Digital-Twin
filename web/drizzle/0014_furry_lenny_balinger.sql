@@ -1,0 +1,1 @@
+ALTER TABLE `test_datasets` ADD `source_columns_json` text;

@@ -66,6 +66,7 @@ export const testDatasets = sqliteTable("test_datasets", {
   storageUri: text("storage_uri"),
   checksumSha256: text("checksum_sha256"),
   rowCount: integer("row_count"),
+  sourceColumnsJson: text("source_columns_json"),
   unitSchema: text("unit_schema").notNull(),
   status: text("status", { enum: DATASET_STATUSES }).notNull().default("registered"),
   idempotencyKey: text("idempotency_key"),
