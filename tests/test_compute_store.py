@@ -1,5 +1,5 @@
-import time
 from datetime import timedelta
+from threading import Event
 from uuid import uuid4
 
 import compute.worker as worker_module
@@ -92,9 +92,10 @@ def test_worker_renews_lease_during_long_execution(tmp_path, monkeypatch) -> Non
         ),
     )
     original = worker_module.execute_job
+    two_heartbeats_seen = Event()
 
     def slow_job(job, context):
-        time.sleep(0.16)
+        assert two_heartbeats_seen.wait(timeout=2), "heartbeat thread did not renew twice"
         return original(job, context)
 
     monkeypatch.setattr(worker_module, "execute_job", slow_job)
@@ -104,6 +105,8 @@ def test_worker_renews_lease_during_long_execution(tmp_path, monkeypatch) -> Non
     def counted_heartbeat(*args, **kwargs):
         nonlocal heartbeats
         heartbeats += 1
+        if heartbeats >= 2:
+            two_heartbeats_seen.set()
         return original_heartbeat(*args, **kwargs)
 
     monkeypatch.setattr(store, "heartbeat", counted_heartbeat)
