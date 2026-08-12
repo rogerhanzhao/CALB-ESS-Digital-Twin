@@ -1,0 +1,66 @@
+manifest:
+  schema_version: V0.2
+  product_id: "<registered product revision>"
+  sample_id: "<unique physical sample identity>"
+  batch_code: "<manufacturing or sample batch>"
+  test_type: cycle_aging
+  source_lab: "<test owner or laboratory>"
+  equipment_id: "<equipment and channel identity>"
+  test_started_at: "2026-01-01T08:00:00+08:00"
+  test_ended_at: "2026-01-02T08:00:00+08:00"
+  file_name: measured.csv
+  file_sha256: "<replace with the 64-character SHA-256 of measured.csv>"
+  operator: "<responsible operator>"
+  notes: null
+  current_sign: charge_positive
+
+mappings:
+  - source_column: Time
+    canonical_column: timestamp
+    source_unit: iso8601
+  - source_column: Elapsed_ms
+    canonical_column: elapsed_time_s
+    source_unit: ms
+  - source_column: Voltage_mV
+    canonical_column: voltage_v
+    source_unit: mV
+  - source_column: Current_A
+    canonical_column: current_a
+    source_unit: A
+  - source_column: Cell_Temperature_C
+    canonical_column: cell_temperature_c
+    source_unit: degC
+  - source_column: Chamber_Temperature_C
+    canonical_column: ambient_temperature_c
+    source_unit: degC
+  - source_column: Capacity_mAh
+    canonical_column: capacity_ah
+    source_unit: mAh
+  - source_column: Cycle
+    canonical_column: cycle_index
+    source_unit: integer
+  - source_column: Step
+    canonical_column: step_index
+    source_unit: integer
+
+policy:
+  # Replace every value with limits from the approved product/test-plan record.
+  # These illustrative placeholders are intentionally invalid until replaced.
+  voltage_min_v: 0
+  voltage_max_v: 0
+  absolute_current_max_a: 0
+  temperature_min_c: 0
+  temperature_max_c: 0
+  irregular_interval_fraction: 0.10
+  gap_interval_multiplier: 3.0
+
+# Required when cycle-level derived metrics are requested. Step roles and sequence must match the
+# approved test plan; do not infer them from current direction alone.
+cycle_metric_policy:
+  nominal_capacity_ah: 0  # Replace with the approved product revision value.
+  step_roles:
+    1: charge
+    2: rest
+    3: discharge
+    4: rest
+  full_cycle_sequence: [charge, rest, discharge, rest]
