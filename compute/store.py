@@ -8,6 +8,15 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TypedDict
+
+
+class ArtifactRegistration(TypedDict):
+    kind: str
+    uri: str
+    content_type: str
+    size_bytes: int
+    checksum_sha256: str
 
 
 def utcnow() -> datetime:
@@ -24,6 +33,7 @@ class JobStore:
     def connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA journal_mode=WAL")
         try:
             yield connection
@@ -47,6 +57,21 @@ class JobStore:
                     attempt INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_artifacts (
+                    job_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    uri TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    checksum_sha256 TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (job_id, kind),
+                    FOREIGN KEY (job_id) REFERENCES jobs(id)
                 )
                 """
             )
@@ -120,14 +145,49 @@ class JobStore:
             raise TypeError("stored checkpoint must be a JSON object")
         return value
 
-    def complete(self, job_id: str, worker_id: str, result: dict) -> bool:
+    def complete(
+        self,
+        job_id: str,
+        worker_id: str,
+        result: dict,
+        artifacts: tuple[ArtifactRegistration, ...] = (),
+    ) -> bool:
+        """Atomically publish a result and its immutable artifact registrations."""
+        now = utcnow().isoformat()
         with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            owner = db.execute(
+                "SELECT 1 FROM jobs WHERE id=? AND worker_id=? AND status='running'",
+                (job_id, worker_id),
+            ).fetchone()
+            if owner is None:
+                db.execute("ROLLBACK")
+                return False
+            for artifact in artifacts:
+                db.execute(
+                    """
+                    INSERT INTO job_artifacts(
+                        job_id, kind, uri, content_type, size_bytes,
+                        checksum_sha256, created_at
+                    ) VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        job_id,
+                        artifact["kind"],
+                        artifact["uri"],
+                        artifact["content_type"],
+                        artifact["size_bytes"],
+                        artifact["checksum_sha256"],
+                        now,
+                    ),
+                )
             cursor = db.execute(
                 """UPDATE jobs SET status='completed', result=?, checkpoint=NULL,
-                   lease_expires_at=NULL,
-                   updated_at=? WHERE id=? AND worker_id=? AND status='running'""",
-                (json.dumps(result), utcnow().isoformat(), job_id, worker_id),
+                   lease_expires_at=NULL, updated_at=?
+                   WHERE id=? AND worker_id=? AND status='running'""",
+                (json.dumps(result), now, job_id, worker_id),
             )
+            db.execute("COMMIT")
             return cursor.rowcount == 1
 
     def fail(self, job_id: str, worker_id: str, error: str) -> bool:
@@ -143,3 +203,10 @@ class JobStore:
         with self.connect() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             return dict(row) if row else None
+
+    def artifacts(self, job_id: str) -> list[dict]:
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT * FROM job_artifacts WHERE job_id=? ORDER BY kind", (job_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]

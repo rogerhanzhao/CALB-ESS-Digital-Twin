@@ -1,6 +1,9 @@
+import sqlite3
 from datetime import timedelta
 from threading import Event
 from uuid import uuid4
+
+import pytest
 
 import compute.worker as worker_module
 from compute.store import JobStore, utcnow
@@ -171,3 +174,89 @@ def test_checkpoint_write_requires_current_lease_owner(tmp_path) -> None:
     assert store.claim("worker-a") is not None
     assert not store.checkpoint("job-1", "worker-b", {"unsafe": True})
     assert store.get_checkpoint("job-1") is None
+
+
+def test_completion_atomically_registers_artifacts_and_clears_checkpoint(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    job_id = "job-artifact-success"
+    assert store.enqueue(job_id, {"job_id": job_id})
+    assert store.claim("worker-a") is not None
+    assert store.checkpoint(job_id, "worker-a", {"completed_year": 3})
+    artifact = {
+        "kind": "manifest.json",
+        "uri": "file:///evidence/manifest.json",
+        "content_type": "application/json",
+        "size_bytes": 42,
+        "checksum_sha256": "a" * 64,
+    }
+    assert store.complete(job_id, "worker-a", {"status": "completed"}, (artifact,))
+    assert store.get_checkpoint(job_id) is None
+    assert [{key: row[key] for key in artifact} for row in store.artifacts(job_id)] == [artifact]
+
+
+def test_failed_artifact_registration_rolls_back_completion(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    job_id = "job-artifact-rollback"
+    assert store.enqueue(job_id, {"job_id": job_id})
+    assert store.claim("worker-a") is not None
+    artifact = {
+        "kind": "manifest.json",
+        "uri": "file:///evidence/manifest.json",
+        "content_type": "application/json",
+        "size_bytes": 42,
+        "checksum_sha256": "b" * 64,
+    }
+    with pytest.raises(sqlite3.IntegrityError):
+        store.complete(job_id, "worker-a", {"status": "completed"}, (artifact, artifact))
+    assert store.get(job_id)["status"] == "running"
+    assert store.artifacts(job_id) == []
+
+
+def test_reclaimed_lease_blocks_stale_worker_artifact_publication(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    job_id = "job-artifact-reclaimed"
+    assert store.enqueue(job_id, {"job_id": job_id})
+    assert store.claim("worker-a", lease_seconds=1) is not None
+    with store.connect() as db:
+        db.execute(
+            "UPDATE jobs SET lease_expires_at=? WHERE id=?",
+            ((utcnow() - timedelta(seconds=1)).isoformat(), job_id),
+        )
+    assert store.claim("worker-b") is not None
+    artifact = {
+        "kind": "manifest.json",
+        "uri": "file:///evidence/manifest.json",
+        "content_type": "application/json",
+        "size_bytes": 42,
+        "checksum_sha256": "c" * 64,
+    }
+
+    assert not store.complete(job_id, "worker-a", {"status": "completed"}, (artifact,))
+    assert store.artifacts(job_id) == []
+    row = store.get(job_id)
+    assert row is not None
+    assert row["status"] == "running"
+    assert row["worker_id"] == "worker-b"
+
+
+def test_artifact_foreign_key_rejects_orphan_evidence(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+
+    with store.connect() as db, pytest.raises(sqlite3.IntegrityError):
+        db.execute(
+            """
+            INSERT INTO job_artifacts(
+                job_id, kind, uri, content_type, size_bytes,
+                checksum_sha256, created_at
+            ) VALUES(?,?,?,?,?,?,?)
+            """,
+            (
+                "missing-job",
+                "manifest.json",
+                "file:///evidence/manifest.json",
+                "application/json",
+                42,
+                "d" * 64,
+                utcnow().isoformat(),
+            ),
+        )
