@@ -286,14 +286,14 @@ Python 内核实现、`configs/*.yaml` 的 pydantic 校验、契约一致性 CI 
 
 ### M1（下一步，建议优先）
 
-- [ ] `contracts/`：pydantic 定义 job payload / result schema，导出 JSON Schema → TS 类型
-- [ ] `compute/` 最小骨架：Dockerfile + 队列消费循环 + 租约/心跳/checkpoint（逻辑可为桩）
+- [x] `contracts/`：pydantic 定义 job payload / result schema，导出 JSON Schema → TS 类型
+- [x] `compute/` 最小骨架：Dockerfile + 队列消费循环 + 租约/心跳/checkpoint（逻辑可为桩）
 - [ ] 打开 R2 绑定，跑通「worker 上传结果 → 控制面签发下载」链路
-- [ ] CI：Python（ruff + pytest）与 web（eslint + build + test）门禁
+- [x] CI：Python（ruff + pytest）与 web（eslint + build + test）门禁
 
 ### M2
 
-- [ ] `soh_engine.calibration`：以真实老化数据拟合半经验模型，产出 RMSE 与适用边界
+- [x] `soh_engine.calibration`：以真实老化数据拟合半经验模型，产出 RMSE 与适用边界
 - [ ] `soh_engine.extrapolation`：长期外推 + 不确定度传播
 - [ ] `pybamm_models`：LFP 基线参数集与可复现参考工况（README 已列为下一里程碑）
 - [ ] `configs/*.yaml` 接入 pydantic 校验

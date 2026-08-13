@@ -81,7 +81,8 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard -- drizzle/)" \
             || { echo "::error::db:generate produced a new migration that was not committed."; exit 1; }
 
-  # The contract-consistency job lands with M1-C, once contracts/ exists: it will
-  # regenerate the JSON Schema and the control-plane TypeScript types from the
-  # pydantic definitions and fail on any diff. See
+  # Contract consistency is enforced by tests/test_contracts.py
+  # (test_generated_contracts_are_current), which runs in the Compute plane job's
+  # pytest step: it regenerates the JSON Schema and the control-plane TypeScript
+  # types from the pydantic definitions and fails on any diff. See
   # docs/collaboration-claude-codex.md section 3, layer L1.

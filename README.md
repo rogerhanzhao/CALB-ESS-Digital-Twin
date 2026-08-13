@@ -10,6 +10,7 @@ An engineering platform for CALB lithium-iron-phosphate (LFP) cell ageing, ESS s
 - **CALB cell database** — versioned cell parameters, test metadata, and ageing datasets.
 - **SOH engine** — calendar/cycle ageing, resistance growth, and model calibration.
 - **ESS dispatch simulator** — operating profiles, thermal conditions, and dispatch strategies.
+- **System translation** — cell-to-system losses, SOC operating window, and auxiliary consumption.
 - **Warranty analysis** — guaranteed-energy checks, augmentation scenarios, and risk reporting.
 
 ## Architecture
@@ -18,10 +19,14 @@ An engineering platform for CALB lithium-iron-phosphate (LFP) cell ageing, ESS s
 Cell data + test results
           |
           v
-PyBaMM adapters --> SOH engine --> ESS dispatch simulator --> Warranty analysis
+PyBaMM adapters --> SOH engine --> ESS dispatch simulator --> System translation --> Warranty analysis
                          |                  |
                          +---- results -----+
 ```
+
+Cell-level state of health never flows directly into warranty output: the
+`system` layer translates it into system-level available energy and efficiency
+first (`docs/architecture.md` §4).
 
 ## Repository layout
 
@@ -35,6 +40,7 @@ src/calb_ess_digital_twin/
   pybamm_models/         PyBaMM model construction and parameter mapping
   soh_engine/            Degradation and SOH calculations
   dispatch/              ESS duty-cycle and dispatch simulation
+  system/                Cell-to-system translation (pack losses, SOC window, auxiliaries)
   warranty/              Warranty KPIs and risk analysis
 tests/                   Automated tests
 ```
