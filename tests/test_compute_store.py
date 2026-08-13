@@ -210,3 +210,30 @@ def test_failed_artifact_registration_rolls_back_completion(tmp_path) -> None:
         store.complete(job_id, "worker-a", {"status": "completed"}, (artifact, artifact))
     assert store.get(job_id)["status"] == "running"
     assert store.artifacts(job_id) == []
+
+
+def test_reclaimed_lease_blocks_stale_worker_artifact_publication(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    job_id = "job-artifact-reclaimed"
+    assert store.enqueue(job_id, {"job_id": job_id})
+    assert store.claim("worker-a", lease_seconds=1) is not None
+    with store.connect() as db:
+        db.execute(
+            "UPDATE jobs SET lease_expires_at=? WHERE id=?",
+            ((utcnow() - timedelta(seconds=1)).isoformat(), job_id),
+        )
+    assert store.claim("worker-b") is not None
+    artifact = {
+        "kind": "manifest.json",
+        "uri": "file:///evidence/manifest.json",
+        "content_type": "application/json",
+        "size_bytes": 42,
+        "checksum_sha256": "c" * 64,
+    }
+
+    assert not store.complete(job_id, "worker-a", {"status": "completed"}, (artifact,))
+    assert store.artifacts(job_id) == []
+    row = store.get(job_id)
+    assert row is not None
+    assert row["status"] == "running"
+    assert row["worker_id"] == "worker-b"
