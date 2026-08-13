@@ -382,7 +382,7 @@ git merge-base --is-ancestor origin/<旧分支> origin/<新分支>
 
 ### 10.5 "不停摆"不等于"不停开分支"
 
-`docs/physical-world-operating-model.md` §11 要求项目不以某个 PR 或里程碑作为停止条件。这条
+项目不以某个 PR 或里程碑作为停止条件。这条
 成立,但它的正确形态是**把一条工作线推到合并**,不是同时开二十条。
 
 没有可推进的工作时,合法的动作依次是:

@@ -2,6 +2,23 @@
 
 All public version labels in this project use an uppercase `V`.
 
+Internal schema and contract versions (`V0.2` schema, `2.0` contract) are data-format
+identifiers and evolve independently of the release version.
+
+## Unreleased
+
+Compute plane
+
+- Added the contract layer (`contracts/`): pydantic job/result schemas as the single source of
+  truth, JSON Schema export, and generated TypeScript types for the control plane.
+- Added the compute worker skeleton (`compute/`): a SQLite-backed local queue with leases,
+  heartbeats, and checkpoints, plus a containerised worker Dockerfile.
+- Added measured test-data intake validation and derived cycle-ageing metrics (`cell_database/`).
+- Added the auditable semi-empirical SOH baseline calibration (`soh_engine.calibration`) with
+  train/validation leakage protection, identifiability checks, and validity-envelope evidence.
+- Added the bounded PyBaMM SPMe reference runner (`pybamm_models/`).
+- Declared the SciPy dependency the calibration fit relies on.
+
 ## Unreleased — V0.1 design review
 
 Design review of the V0.1 foundation and the P0 remediation it called for. Findings,
