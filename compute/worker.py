@@ -14,7 +14,7 @@ from threading import Event, Thread
 from calb_ess_digital_twin.pybamm_models.runner import run_spme_reference
 from contracts.models import JobPayload, RunResult, Uncertainty
 
-from .store import JobStore
+from .store import ArtifactRegistration, JobStore
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,14 @@ class ExecutionContext:
 
     resume_from: dict | None
     save_checkpoint: Callable[[dict], None]
+
+
+@dataclass(frozen=True)
+class ExecutionOutcome:
+    """Everything that becomes visible together when a lease owner completes."""
+
+    result: RunResult
+    artifacts: tuple[ArtifactRegistration, ...] = ()
 
 
 def execute_job(payload: JobPayload, context: ExecutionContext) -> RunResult:
@@ -46,6 +54,11 @@ def execute_job(payload: JobPayload, context: ExecutionContext) -> RunResult:
         uncertainty=Uncertainty(confidence_level=0.95, source="not_available"),
         warnings=["Stub lifecycle result; no electrochemical or SOH calculation was executed."],
     )
+
+
+def execute_job_with_artifacts(payload: JobPayload, context: ExecutionContext) -> ExecutionOutcome:
+    """Stable extension point for evidence-producing job types."""
+    return ExecutionOutcome(result=execute_job(payload, context))
 
 
 @contextmanager
@@ -98,10 +111,12 @@ def run_once(
             save_checkpoint=save_checkpoint,
         )
         with keep_lease_alive(store, job_id, worker_id, lease_seconds, interval) as lease_lost:
-            result = execute_job(payload, context)
+            outcome = execute_job_with_artifacts(payload, context)
         if lease_lost.is_set():
             raise RuntimeError("worker lost its lease during execution")
-        if not store.complete(job_id, worker_id, result.model_dump(mode="json")):
+        if not store.complete(
+            job_id, worker_id, outcome.result.model_dump(mode="json"), outcome.artifacts
+        ):
             raise RuntimeError("worker lost its lease before completion")
     # A worker boundary must convert every job failure into durable state so the
     # process survives malformed payloads and numerical-engine exceptions.
