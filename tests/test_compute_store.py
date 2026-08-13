@@ -237,3 +237,26 @@ def test_reclaimed_lease_blocks_stale_worker_artifact_publication(tmp_path) -> N
     assert row is not None
     assert row["status"] == "running"
     assert row["worker_id"] == "worker-b"
+
+
+def test_artifact_foreign_key_rejects_orphan_evidence(tmp_path) -> None:
+    store = JobStore(tmp_path / "jobs.sqlite3")
+
+    with store.connect() as db, pytest.raises(sqlite3.IntegrityError):
+        db.execute(
+            """
+            INSERT INTO job_artifacts(
+                job_id, kind, uri, content_type, size_bytes,
+                checksum_sha256, created_at
+            ) VALUES(?,?,?,?,?,?,?)
+            """,
+            (
+                "missing-job",
+                "manifest.json",
+                "file:///evidence/manifest.json",
+                "application/json",
+                42,
+                "d" * 64,
+                utcnow().isoformat(),
+            ),
+        )
