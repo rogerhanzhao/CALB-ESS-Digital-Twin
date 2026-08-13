@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from calb_ess_digital_twin.soh_engine import (
     AgingObservation,
     CalibrationRequest,
+    CalibrationResult,
     ExtrapolationLimits,
     SemiEmpiricalParameters,
     SplitRole,
@@ -245,3 +246,23 @@ def test_cli_writes_non_overwriting_draft_calibration_artifact(
     assert exit_code == 0
     assert result_path.is_file()
     assert '"approval_eligible": true' in result_path.read_text(encoding="utf-8")
+
+
+def test_deserialized_approval_eligibility_cannot_contradict_gates() -> None:
+    result = fit_semi_empirical_model(_request())
+    data = result.model_dump(mode="python")
+    data["approval_eligible"] = True
+    data["meets_validation_limit"] = False
+
+    with pytest.raises(ValidationError, match="approval_eligible"):
+        CalibrationResult.model_validate(data)
+
+
+def test_deserialized_approval_eligibility_cannot_contradict_bounds_flag() -> None:
+    result = fit_semi_empirical_model(_request())
+    data = result.model_dump(mode="python")
+    data["approval_eligible"] = True
+    data["parameters_at_bounds"] = True
+
+    with pytest.raises(ValidationError, match="approval_eligible"):
+        CalibrationResult.model_validate(data)

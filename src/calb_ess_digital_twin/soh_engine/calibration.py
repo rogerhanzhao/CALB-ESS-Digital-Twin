@@ -189,6 +189,21 @@ class CalibrationResult(BaseModel):
     warnings: list[str]
     observation_fits: list[ObservationFit]
 
+    @model_validator(mode="after")
+    def approval_eligibility_matches_gates(self) -> CalibrationResult:
+        derived = bool(
+            self.fit_converged
+            and self.identifiable
+            and not self.parameters_at_bounds
+            and self.meets_validation_limit
+        )
+        if self.approval_eligible != derived:
+            raise ValueError(
+                "approval_eligible must equal fit_converged AND identifiable AND "
+                "(not parameters_at_bounds) AND meets_validation_limit"
+            )
+        return self
+
 
 def capacity_fraction(
     elapsed_days: np.ndarray | float,
