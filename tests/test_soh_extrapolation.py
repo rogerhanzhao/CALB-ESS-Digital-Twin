@@ -218,6 +218,17 @@ def test_scenario_product_must_match_calibration_product() -> None:
         _request(conditions=_conditions(product_revision="different-product"))
 
 
+def test_validity_envelope_product_must_match_calibration_product() -> None:
+    calibration = _calibration()
+    envelope = calibration.validity_envelope.model_copy(
+        update={"product_revision": "different-product"}
+    )
+    calibration = calibration.model_copy(update={"validity_envelope": envelope})
+
+    with pytest.raises(ValidationError, match="validity-envelope product_revision"):
+        _request(calibration=calibration)
+
+
 def test_cli_writes_versioned_non_overwriting_trajectory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -239,3 +250,25 @@ def test_cli_writes_versioned_non_overwriting_trajectory(
     result_text = result_path.read_text(encoding="utf-8")
     assert '"result_version": "result-V1"' in result_text
     assert '"warranty_eligible": false' in result_text
+
+
+def test_cli_refuses_to_overwrite_existing_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request_path = tmp_path / "extrapolation-request.yaml"
+    result_path = tmp_path / "soh-result.json"
+    request_path.write_text(
+        yaml.safe_dump(_request().model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    result_path.write_text("original", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["calb-extrapolate-soh", str(request_path), str(result_path)],
+    )
+
+    with pytest.raises(SystemExit):
+        extrapolation_cli_main()
+
+    assert result_path.read_text(encoding="utf-8") == "original"

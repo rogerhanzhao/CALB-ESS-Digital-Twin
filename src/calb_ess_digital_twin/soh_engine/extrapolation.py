@@ -68,6 +68,13 @@ class ExtrapolationRequest(BaseModel):
         if self.conditions.product_revision != self.calibration.product_revision:
             raise ValueError("scenario product_revision does not match calibration")
         if (
+            self.calibration.validity_envelope.product_revision
+            != self.calibration.product_revision
+        ):
+            raise ValueError(
+                "calibration validity-envelope product_revision does not match calibration"
+            )
+        if (
             self.calibration_approval_status == CalibrationApprovalStatus.APPROVED
             and not self.calibration.approval_eligible
         ):

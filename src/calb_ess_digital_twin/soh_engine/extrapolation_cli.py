@@ -25,15 +25,16 @@ def main() -> int:
     parser.add_argument("request_yaml", type=Path)
     parser.add_argument("result_json", type=Path)
     args = parser.parse_args()
-    if args.result_json.exists():
-        parser.error("result_json already exists; result versions must not be overwritten")
-
     result = extrapolate_soh(load_request(args.request_yaml))
     args.result_json.parent.mkdir(parents=True, exist_ok=True)
-    args.result_json.write_text(
-        json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        with args.result_json.open("x", encoding="utf-8") as destination:
+            destination.write(
+                json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False)
+                + "\n"
+            )
+    except FileExistsError:
+        parser.error("result_json already exists; result versions must not be overwritten")
     print(f"Within validity envelope: {result.all_points_within_validity_envelope}")
     print(f"Engineering review eligible: {result.engineering_review_eligible}")
     print(f"Warranty eligible: {result.warranty_eligible}")
