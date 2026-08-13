@@ -178,7 +178,9 @@ def test_unapproved_calibration_keeps_in_envelope_run_exploratory() -> None:
 
 
 def test_computationally_ineligible_calibration_cannot_be_marked_approved() -> None:
-    calibration = _calibration().model_copy(update={"approval_eligible": False})
+    calibration_data = _calibration().model_dump()
+    calibration_data.update({"fit_converged": False, "approval_eligible": False})
+    calibration = CalibrationResult.model_validate(calibration_data)
 
     with pytest.raises(ValidationError, match="cannot be marked approved"):
         _request(calibration=calibration)
