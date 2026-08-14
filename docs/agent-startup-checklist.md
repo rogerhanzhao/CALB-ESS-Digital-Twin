@@ -144,7 +144,7 @@ CODEX 已提三条（system/ 目录不存在、M2 勾选过度、当前状态表
 
 | 责任方 | 动作 |
 |---|---|
-| **WORKBUDDY** | 处理 CODEX 三条 + 本文件 C-1…C-5；把审计报告 `docs/audit-*.md` 补进 #48；分支改用 `workbuddy/*` |
+| **WORKBUDDY** | 处理 CODEX 三条 + 本文件 C-1…C-4；把审计报告 `docs/audit-*.md` 补进 #48。**分支继续留在 `audit/docs-governance-f2-f7`** —— C-5 的改名要等 Alex.Z 批准 `workbuddy/*` 命名空间后才做（collaboration §11 待批权限表），批准前不得新建该前缀的分支 |
 | **CODEX** | **按顺序**：① 把 #49 与 #11 推到合并或关闭（#11 是 #48 F6 的前置）；② 给 #49 描述补上 revert 溯源，**只陈述已知事实，不得推测撤回原因**（见 §2(2)）；③ **只有在 `main` 因此前进之后**，才从 #41 抽下一块。在 ① 完成前不得开新工作线（§4.2） |
 | **Claude** | 交叉审核 #49 的 validity-envelope 语义与 approval gating（#49 已点名）；删除已合并的 `codex/soh-calibration-core` |
 | **Alex.Z（负责人）** | Q2（是否有真实老化数据集）—— 它现在**同时卡住 M2 勾选、#41 和质保结论**，是唯一真正的阻塞项 |

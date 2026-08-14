@@ -499,11 +499,23 @@ PR #48 的 F6 删除了对 `docs/physical-world-operating-model.md` 的引用，
 但 PR #11（`codex/physical-operating-model`，当时已 open 四天）正是**新增该文件**的 PR。
 它不是悬空引用，是**前向引用**。删掉它，等 #11 合并后交叉引用就凭空消失了。
 
-规定：判定任何引用为"悬空"之前，先跑一遍：
+规定：判定任何引用为"悬空"之前，必须检查**当前 open 的 PR 的 head ref**，
+而不是遍历所有远程分支 —— `git branch -r` 会连带列出已关闭 / 已废弃 PR 遗留的分支，
+也漏掉来自 fork 的 PR head。用前者会把真正的悬空引用误判为有效，用后者会漏判。
+
+正确做法是先取 open PR 的 head ref 清单，再只查这些 ref：
 
 ```bash
 git fetch origin --prune
-for b in $(git branch -r | grep -v main); do git ls-tree -r --name-only $b | grep <目标路径>; done
+# 用 GitHub API / gh CLI 取 open PR 的 head ref（gh 默认只列 open）
+gh pr list --state open --json number,headRefName,headRepositoryOwner
+# 逐个检查目标路径是否由某个 open PR 提供
+for r in <上一步得到的 headRefName>; do
+  git ls-tree -r --name-only origin/$r -- <目标路径>
+done
 ```
 
-有任一在审分支提供该文件，就**不是悬空引用** —— 正确动作是在 PR 描述里注明它依赖 #11。
+fork 来源的 PR 需先 `git fetch origin pull/<n>/head` 再查。
+
+有任一 **open PR** 提供该文件，就**不是悬空引用** —— 正确动作是在 PR 描述里注明它依赖那个 PR。
+若只有已关闭 PR 的遗留分支提供它，那**确实是悬空引用**，可以删。
