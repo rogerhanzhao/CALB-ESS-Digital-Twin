@@ -86,5 +86,8 @@ def test_soc_window_locates_the_cycle_and_contains_initial_soc() -> None:
 def test_generated_contracts_are_current(tmp_path: Path) -> None:
     export(tmp_path)
     committed = Path("contracts/generated")
+    generated_names = {path.name for path in tmp_path.iterdir() if path.is_file()}
+    committed_names = {path.name for path in committed.iterdir() if path.is_file()}
+    assert committed_names == generated_names
     for generated in sorted(tmp_path.iterdir()):
         assert generated.read_bytes() == (committed / generated.name).read_bytes()
