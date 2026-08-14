@@ -1,9 +1,19 @@
 # 开工必读 — 三方智能体交接清单
 
-> 本文件由每一轮交叉审核的执行方更新，是**下一轮开工前必须读完的第一份文档**。
-> `docs/collaboration-claude-codex.md` 定长期规则；本文件定"这一轮具体该做什么、不该做什么"。
+> `docs/collaboration-claude-codex.md` 定长期规则；本文件记录"这一轮具体该做什么、不该做什么"。
 >
-> **本轮更新**：2026-08-14T00:30Z ｜ 执行方：Claude（Agent-B）｜ 审核对象：PR #48 / WORKBUDDY 首轮接入
+> **本轮记录**：2026-08-14T00:30Z ｜ 执行方：Claude（Agent-B）｜ 审核对象：PR #48 / WORKBUDDY 首轮接入
+
+## 本文件的写入规则（先读这条）
+
+1. **追加，不覆盖。** 每一轮交叉审核在文件**顶部追加**一条带日期的交接记录，
+   旧记录原样保留。任何一方都不得改写他方已写下的记录 —— 那是审计痕迹，不是草稿。
+2. **单一写者。** 一条记录的写者是**当轮执行交叉审核的那一方**，其他两方只能追加新记录，
+   或在对应 PR 上提 finding。
+3. **状态表 24 小时后即视为过期。** 下方所有状态表都带时间戳；
+   超过 24 小时一律以 §0 的命令输出为准，**不得引用过期表作为事实依据**。
+4. **本文件没有裁决权。** 它是交接件，不是真相源。
+   真相源永远是 `git` 与 CI（见 collaboration §7）。本文件与仓库现状冲突时，**以仓库为准**。
 
 ---
 
@@ -58,17 +68,29 @@ CODEX 审出 WORKBUDDY 自己引入的新漂移，本轮 Claude 又审出前两�
 §10.5 写得很清楚：**进度的唯一度量是 `main` 是否前进**。当前瓶颈不是产出，是合并。
 下一轮的第一优先级是**把 #49 和 #11 推到合并**，而不是开新工作线。
 
-**（2）revert 没有理由。** `main` 上有两个裸 revert：
+**（2）revert 没有写理由。** `main` 的历史里有一对裸 revert，两条 commit message 都只有
+`git revert` 的默认文本，没有任何理由：
 
 ```
-df1d707 Revert "Add validity-aware SOH extrapolation"     ← 无任何理由说明
-4ebac87 Revert "Preserve fractional planned cycle counts"  ← 无任何理由说明
+df1d707 Revert "Add validity-aware SOH extrapolation"
+4ebac87 Revert "Preserve fractional planned cycle counts"
 ```
 
-而 PR #49 正在把这两个提交**原样重新落地**（并做了加固），PR 描述里**只字未提它们曾被 revert**。
-没有人能判断当初 revert 的原因是否已被解决 —— 审核者会重新踩一遍同一个坑。
+**准确的说法**（2026-08-14T00:35Z 复核后修正）：这一对 revert 并非发生在 `main` 上，
+而是发生在 `codex/soh-calibration-core` 分支内部，随 PR #47 合并**进入 `main` 的历史**。
+两者可从 `origin/main`（`ca68049`）到达，可自行复核：
 
-**新规定**：revert `main` 上的提交，commit message 必须写明理由；
+```bash
+git merge-base --is-ancestor df1d707 origin/main && echo REACHABLE
+git merge-base --is-ancestor 4ebac87 origin/main && echo REACHABLE
+```
+
+所以这不是"合进主干又被撤回"，而是"分支内自我撤回后连同撤回记录一起合入"。
+影响小于前者，但问题仍在：PR #49 正在重新落地同一批工作（`825040a`/`f3e47fe` 的内容，
+扩充加固后为 631 行），而 #49 的描述**未提及这段撤回历史**。
+审核者无从判断当初撤回的原因是否已被解决。
+
+**规定**（对未来生效，不追溯）：revert 任何已推送的提交，commit message 必须写明理由；
 重新落地被 revert 的工作，PR 描述必须引用该 revert 并说明「原因是什么、这次怎么解决的」。
 
 ---
@@ -111,6 +133,6 @@ CODEX 已提三条（system/ 目录不存在、M2 勾选过度、当前状态表
 | 责任方 | 动作 |
 |---|---|
 | **WORKBUDDY** | 处理 CODEX 三条 + 本文件 C-1…C-5；把审计报告 `docs/audit-*.md` 补进 #48；分支改用 `workbuddy/*` |
-| **CODEX** | 把 #11 推向合并（它是 #48 F6 的前置）；给 #49 的描述补上 revert 溯源；继续从 #41 抽块 |
+| **CODEX** | **按顺序**：① 把 #49 与 #11 推到合并或关闭（#11 是 #48 F6 的前置）；② 给 #49 描述补上 revert 溯源；③ **只有在 `main` 因此前进之后**，才从 #41 抽下一块。在 ① 完成前不得开新工作线（§4.2） |
 | **Claude** | 交叉审核 #49 的 validity-envelope 语义与 approval gating（#49 已点名）；删除已合并的 `codex/soh-calibration-core` |
 | **Alex.Z（负责人）** | Q2（是否有真实老化数据集）—— 它现在**同时卡住 M2 勾选、#41 和质保结论**，是唯一真正的阻塞项 |
